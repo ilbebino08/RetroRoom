@@ -1,0 +1,99 @@
+.root {
+    -fx-background-color: #1a1a1a;
+    /* -fx-background-image: url("background.png"); Placeholder for texture */
+    -fx-font-family: 'Courier New', monospace;
+}
+
+.steampunk-panel {
+    -fx-background-color: #2b1d0e;
+    -fx-border-color: #cd7f32; /* Bronze */
+    -fx-border-width: 5px;
+    -fx-border-radius: 10px;
+    -fx-background-radius: 10px;
+    -fx-padding: 15px;
+    -fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.8), 10, 0, 0, 0);
+}
+
+.leaderboard-title {
+    -fx-text-fill: #d4af37; /* Gold */
+    -fx-font-size: 24px;
+    -fx-font-weight: bold;
+    -fx-effect: dropshadow(gaussian, #000000, 2, 1, 1, 1);
+    -fx-alignment: center;
+}
+
+.leaderboard-list {
+    -fx-background-color: #3e2723;
+    -fx-control-inner-background: #3e2723;
+    -fx-border-color: #8d6e63;
+    -fx-text-fill: #ffcc80;
+}
+
+.leaderboard-list .list-cell {
+    -fx-background-color: #3e2723;
+    -fx-text-fill: #ffcc80;
+}
+.leaderboard-list .list-cell:even {
+     -fx-background-color: #4e342e;
+}
+
+.arcade-cabinet {
+    -fx-background-color: #4e342e; /* Wood dark */
+    -fx-border-color: #ffd700; /* Gold */
+    -fx-border-width: 8px;
+    -fx-border-radius: 20px 20px 0 0;
+    -fx-background-radius: 20px 20px 0 0;
+    -fx-padding: 20px;
+     -fx-effect: innershadow(three-pass-box, rgba(0,0,0,0.7), 20, 0, 0, 0);
+}
+
+.screen-border {
+    -fx-background-color: #000000;
+    -fx-border-color: #555555;
+    -fx-border-width: 10px;
+    -fx-border-radius: 5px;
+    -fx-padding: 10px;
+}
+
+.game-screen {
+    -fx-background-color: #111111;
+     -fx-effect: innershadow(gaussian, #00ff00, 10, 0.2, 0, 0); /* CRT glow effect */
+}
+
+.control-panel {
+    -fx-background-color: #5d4037;
+    -fx-border-color: #8d6e63;
+    -fx-border-width: 4px;
+    -fx-padding: 15px;
+    -fx-spacing: 20px;
+    -fx-alignment: center;
+}
+
+.arcade-button {
+    -fx-background-color: radial-gradient(center 50% 50%, radius 50%, #f44336, #b71c1c);
+    -fx-background-radius: 50%;
+    -fx-min-width: 50px;
+    -fx-min-height: 50px;
+    -fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.6), 5, 0, 0, 5);
+}
+.arcade-button:pressed {
+    -fx-background-color: radial-gradient(center 50% 50%, radius 50%, #b71c1c, #f44336);
+    -fx-translate-y: 2px;
+}
+
+.joystick-base {
+    -fx-background-color: #424242;
+    -fx-background-radius: 50%;
+    -fx-min-width: 80px;
+    -fx-min-height: 80px;
+    -fx-alignment: center;
+}
+
+.joystick-stick {
+    -fx-background-color: radial-gradient(center 50% 50%, radius 50%, #ff5722, #bf360c);
+    -fx-background-radius: 50%;
+    -fx-min-width: 40px;
+    -fx-min-height: 40px;
+    -fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.6), 8, 0, 5, 5);
+}
+

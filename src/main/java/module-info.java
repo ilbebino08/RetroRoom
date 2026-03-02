@@ -1,4 +1,5 @@
 module com.retroroom {
+    requires java.base;
     requires javafx.controls;
     requires javafx.fxml;
 
