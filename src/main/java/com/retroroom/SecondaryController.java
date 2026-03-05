@@ -1,12 +1,5 @@
 package com.retroroom;
 
-import java.io.IOException;
-import javafx.fxml.FXML;
-
 public class SecondaryController {
-
-    @FXML
-    private void switchToPrimary() throws IOException {
-        App.setRoot("primary");
-    }
+    // Controller non più utilizzato poiché siamo passati a una gestione puramente Java (no FXML)
 }
