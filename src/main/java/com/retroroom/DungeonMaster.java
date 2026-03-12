@@ -196,4 +196,25 @@ public class DungeonMaster {
             posizionaChiaveEUscita(dungeon, g, chiavePosizionata, uscitaPosizionata);
         }
     }
+    public static void main(String[] args) {
+
+        char[][] dungeon = new char[DIMENSIONE][DIMENSIONE];
+        int[][] vitaMostri = new int[DIMENSIONE][DIMENSIONE];
+
+        boolean[] chiavePosizionata = {false};
+        boolean[] uscitaPosizionata = {false};
+        boolean[] finito = {false};
+        int[] mostriRimasti = {NUMERO_MOSTRI};
+
+        Giocatore g = new Giocatore();
+
+        generaDungeon(dungeon, chiavePosizionata, mostriRimasti, uscitaPosizionata, vitaMostri);
+
+        while (!finito[0] && g.salute > 0) {
+            mostraDungeon(dungeon, g);
+            muoviGiocatore(g, dungeon, chiavePosizionata, uscitaPosizionata, mostriRimasti, vitaMostri, finito);
+        }
+
+        System.out.println("\nGrazie per aver giocato!");
+    }
 }
