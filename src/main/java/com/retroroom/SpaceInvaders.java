@@ -16,6 +16,8 @@ public class SpaceInvaders {
     private int[] posizioneNemicoY = new int[3];
 
     private int nemiciEliminati = 0;
+    private long startMillis;
+    private long endMillis;
 
     private Random rand = new Random();
 
@@ -29,6 +31,9 @@ public class SpaceInvaders {
             posizioneNemicoX[i] = rand.nextInt(larghezza);
             posizioneNemicoY[i] = rand.nextInt(altezza - 1);
         }
+
+        startMillis = System.currentTimeMillis();
+        endMillis = 0;
     }
 
     // Mostra il campo di gioco
@@ -88,6 +93,9 @@ public class SpaceInvaders {
                     posizioneNemicoY[i] = rand.nextInt(altezza - 1);
 
                     nemiciEliminati++;
+                    if (nemiciEliminati >= nemiciDaEliminare && endMillis == 0) {
+                        endMillis = System.currentTimeMillis();
+                    }
                 }
             }
         }
@@ -101,5 +109,38 @@ public class SpaceInvaders {
     // Get se vogliamo vedere i nemici eliminati
     public int getNemiciEliminati() {
         return nemiciEliminati;
+    }
+
+    public int getLarghezza() {
+        return larghezza;
+    }
+
+    public int getAltezza() {
+        return altezza;
+    }
+
+    public int getNemiciDaEliminare() {
+        return nemiciDaEliminare;
+    }
+
+    public int getPosizioneGiocatoreX() {
+        return posizioneGiocatoreX;
+    }
+
+    public int getPosizioneGiocatoreY() {
+        return posizioneGiocatoreY;
+    }
+
+    public int[] getPosizioneNemicoX() {
+        return posizioneNemicoX.clone();
+    }
+
+    public int[] getPosizioneNemicoY() {
+        return posizioneNemicoY.clone();
+    }
+
+    public long getElapsedSeconds() {
+        long end = endMillis > 0 ? endMillis : System.currentTimeMillis();
+        return Math.max(0, (end - startMillis) / 1000);
     }
 }

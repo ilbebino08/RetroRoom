@@ -1,7 +1,6 @@
 package com.retroroom;
 
 import java.util.Random;
-import java.util.Scanner;
 
 public class DungeonMaster {
 
@@ -11,8 +10,6 @@ public class DungeonMaster {
     public static final int DANNO_SPADA = 20;
     public static final int VITA_MOSTRO = 20;
 
-    // Scanner per input
-    private static Scanner input = new Scanner(System.in);
     private static Random rand = new Random();
 
     // Classe Giocatore
@@ -34,6 +31,195 @@ public class DungeonMaster {
             haChiave = false;
             mostriSconfitti = 0;
             haVinto = false;
+        }
+    }
+
+    public static class GameState {
+        private final char[][] dungeon = new char[DIMENSIONE][DIMENSIONE];
+        private final int[][] vitaMostri = new int[DIMENSIONE][DIMENSIONE];
+        private final boolean[] chiavePosizionata = {false};
+        private final boolean[] uscitaPosizionata = {false};
+        private final boolean[] finito = {false};
+        private final int[] mostriRimasti = {NUMERO_MOSTRI};
+        private final Giocatore giocatore = new Giocatore();
+        private long startMillis;
+        private long endMillis;
+    }
+
+    public static GameState newGame() {
+        GameState state = new GameState();
+        generaDungeon(state.dungeon, state.chiavePosizionata, state.mostriRimasti, state.uscitaPosizionata, state.vitaMostri);
+        state.startMillis = System.currentTimeMillis();
+        return state;
+    }
+
+    public static boolean isFinished(GameState state) {
+        return state.finito[0] || state.giocatore.salute <= 0;
+    }
+
+    public static boolean isWon(GameState state) {
+        return state.giocatore.haVinto;
+    }
+
+    public static int getGold(GameState state) {
+        return state.giocatore.oro;
+    }
+
+    public static int getHealth(GameState state) {
+        return state.giocatore.salute;
+    }
+
+    public static long getElapsedSeconds(GameState state) {
+        long end = state.endMillis > 0 ? state.endMillis : System.currentTimeMillis();
+        return Math.max(0, (end - state.startMillis) / 1000);
+    }
+
+    public static String move(GameState state, char movimento) {
+        if (isFinished(state)) {
+            return "Partita conclusa";
+        }
+
+        int nuovaX = state.giocatore.x;
+        int nuovaY = state.giocatore.y;
+
+        switch (movimento) {
+            case 'w': nuovaX--; break;
+            case 's': nuovaX++; break;
+            case 'a': nuovaY--; break;
+            case 'd': nuovaY++; break;
+            default: return "Comando non valido";
+        }
+
+        if (nuovaX < 0 || nuovaX >= DIMENSIONE || nuovaY < 0 || nuovaY >= DIMENSIONE) {
+            return "Muro!";
+        }
+
+        state.giocatore.x = nuovaX;
+        state.giocatore.y = nuovaY;
+
+        char cella = state.dungeon[state.giocatore.x][state.giocatore.y];
+        String evento = "";
+
+        switch (cella) {
+            case 'M':
+                if (state.giocatore.haSpada) {
+                    state.vitaMostri[state.giocatore.x][state.giocatore.y] -= DANNO_SPADA;
+                    int dannoSubito = 10 + rand.nextInt(9);
+                    state.giocatore.salute -= dannoSubito;
+                    evento = "Mostro colpito (-" + DANNO_SPADA + "), danno subito " + dannoSubito;
+
+                    if (state.vitaMostri[state.giocatore.x][state.giocatore.y] <= 0) {
+                        state.dungeon[state.giocatore.x][state.giocatore.y] = '.';
+                        state.giocatore.mostriSconfitti++;
+                        state.mostriRimasti[0]--;
+                        state.giocatore.oro += 20;
+                        evento = "Mostro sconfitto! +20 oro";
+                    }
+                } else {
+                    state.giocatore.salute = 0;
+                    state.finito[0] = true;
+                    state.endMillis = System.currentTimeMillis();
+                    return "GAME OVER: mostro senza spada";
+                }
+                break;
+            case 'S':
+                state.giocatore.haSpada = true;
+                state.dungeon[state.giocatore.x][state.giocatore.y] = '.';
+                evento = "Spada raccolta";
+                break;
+            case 'K':
+                state.giocatore.haChiave = true;
+                state.dungeon[state.giocatore.x][state.giocatore.y] = '.';
+                evento = "Chiave raccolta";
+                break;
+            case 'E':
+                if (state.giocatore.haChiave) {
+                    state.finito[0] = true;
+                    state.giocatore.haVinto = true;
+                    state.endMillis = System.currentTimeMillis();
+                    return "HAI VINTO";
+                }
+                break;
+            default:
+                break;
+        }
+
+        if (state.giocatore.salute <= 0) {
+            state.finito[0] = true;
+            state.endMillis = System.currentTimeMillis();
+            return "GAME OVER";
+        }
+
+        posizionaChiaveEUscitaSilenziosa(state.dungeon, state.giocatore, state.chiavePosizionata, state.uscitaPosizionata);
+        return evento;
+    }
+
+    public static String render(GameState state) {
+        StringBuilder out = new StringBuilder();
+        out.append("DUNGEON MASTER\n");
+        for (int i = 0; i < DIMENSIONE; i++) {
+            for (int j = 0; j < DIMENSIONE; j++) {
+                if (i == state.giocatore.x && j == state.giocatore.y) {
+                    out.append("🟦 ");
+                } else {
+                    out.append(tileToEmoji(state.dungeon[i][j])).append(' ');
+                }
+            }
+            out.append('\n');
+        }
+        out.append(getHudLine(state));
+        return out.toString();
+    }
+
+    public static String[][] getEmojiGrid(GameState state) {
+        String[][] grid = new String[DIMENSIONE][DIMENSIONE];
+        for (int i = 0; i < DIMENSIONE; i++) {
+            for (int j = 0; j < DIMENSIONE; j++) {
+                grid[i][j] = (i == state.giocatore.x && j == state.giocatore.y)
+                        ? "😀"
+                        : tileToEmoji(state.dungeon[i][j]);
+            }
+        }
+        return grid;
+    }
+
+    public static String getHudLine(GameState state) {
+        return "HP:" + state.giocatore.salute
+                + " Oro:" + state.giocatore.oro
+                + " Mostri:" + state.giocatore.mostriSconfitti + "/" + NUMERO_MOSTRI
+                + " Tempo:" + getElapsedSeconds(state) + "s";
+    }
+
+    private static String tileToEmoji(char tile) {
+        switch (tile) {
+            case 'M':
+                return "👹";
+            case 'S':
+                return "🔪";
+            case 'K':
+                return "🔑";
+            case 'E':
+                return "🚪";
+            default:
+                return "";
+        }
+    }
+
+    private static void posizionaChiaveEUscitaSilenziosa(char[][] dungeon, Giocatore g,
+                                                         boolean[] chiavePosizionata,
+                                                         boolean[] uscitaPosizionata) {
+        if (g.mostriSconfitti >= NUMERO_MOSTRI && !chiavePosizionata[0]) {
+            int x = rand.nextInt(DIMENSIONE);
+            int y = rand.nextInt(DIMENSIONE);
+            dungeon[x][y] = 'K';
+            chiavePosizionata[0] = true;
+        }
+
+        if (g.haChiave && !uscitaPosizionata[0]) {
+            int x = rand.nextInt(DIMENSIONE);
+            int y = rand.nextInt(DIMENSIONE);
+            dungeon[x][y] = 'E';
+            uscitaPosizionata[0] = true;
         }
     }
 
@@ -66,159 +252,4 @@ public class DungeonMaster {
         uscitaPosizionata[0] = false;
     }
 
-    // Posiziona chiave e uscita
-    public static void posizionaChiaveEUscita(char[][] dungeon, Giocatore g,
-                                              boolean[] chiavePosizionata,
-                                              boolean[] uscitaPosizionata) {
-
-        if (g.mostriSconfitti >= NUMERO_MOSTRI && !chiavePosizionata[0]) {
-            int x = rand.nextInt(DIMENSIONE);
-            int y = rand.nextInt(DIMENSIONE);
-            dungeon[x][y] = 'K';
-            chiavePosizionata[0] = true;
-            System.out.println("\nHai sconfitto tutti i mostri! La chiave è apparsa!");
-        }
-
-        if (g.haChiave && !uscitaPosizionata[0]) {
-            int x = rand.nextInt(DIMENSIONE);
-            int y = rand.nextInt(DIMENSIONE);
-            dungeon[x][y] = 'E';
-            uscitaPosizionata[0] = true;
-            System.out.println("\nLa porta di uscita è apparsa!");
-        }
-    }
-
-    // Mostra il dungeon
-    public static void mostraDungeon(char[][] dungeon, Giocatore g) {
-        System.out.println("\n+-- D U N G E O N  W O R L D --+\n");
-
-        for (int i = 0; i < DIMENSIONE; i++) {
-            System.out.print("  ");
-            for (int j = 0; j < DIMENSIONE; j++) {
-                if (i == g.x && j == g.y) {
-                    System.out.print("P ");
-                } else {
-                    System.out.print(dungeon[i][j] + " ");
-                }
-            }
-            System.out.println();
-        }
-
-        System.out.println("\nSalute: " + g.salute + " | Oro: " + g.oro +
-                " | Mostri sconfitti: " + g.mostriSconfitti);
-        System.out.println("Spada: " + (g.haSpada ? "Si" : "No") +
-                " | Chiave: " + (g.haChiave ? "Si" : "No"));
-    }
-
-    // Movimento del giocatore
-    public static void muoviGiocatore(Giocatore g, char[][] dungeon,
-                                      boolean[] chiavePosizionata,
-                                      boolean[] uscitaPosizionata,
-                                      int[] mostriRimasti,
-                                      int[][] vitaMostri,
-                                      boolean[] finito) {
-
-        System.out.print("Muoviti (w,a,s,d): ");
-        char movimento = input.next().charAt(0);
-
-        int nuovaX = g.x;
-        int nuovaY = g.y;
-
-        switch (movimento) {
-            case 'w': nuovaX--; break;
-            case 's': nuovaX++; break;
-            case 'a': nuovaY--; break;
-            case 'd': nuovaY++; break;
-            default:
-                System.out.println("Comando non valido!");
-                return;
-        }
-
-        if (nuovaX >= 0 && nuovaX < DIMENSIONE && nuovaY >= 0 && nuovaY < DIMENSIONE) {
-            g.x = nuovaX;
-            g.y = nuovaY;
-
-            char cella = dungeon[g.x][g.y];
-
-            switch (cella) {
-
-                case 'M':
-                    if (g.haSpada) {
-                        System.out.println("\nHai attaccato il mostro!");
-                        vitaMostri[g.x][g.y] -= DANNO_SPADA;
-
-                        int dannoSubito = 10 + rand.nextInt(9);
-                        g.salute -= dannoSubito;
-                        System.out.println("Il mostro ti colpisce! -" + dannoSubito);
-
-                        if (vitaMostri[g.x][g.y] <= 0) {
-                            dungeon[g.x][g.y] = '.';
-                            g.mostriSconfitti++;
-                            mostriRimasti[0]--;
-                            g.oro += 20;
-                            System.out.println("Mostro sconfitto! +20 oro");
-                        }
-
-                    } else {
-                        System.out.println("\nGAME OVER! Hai incontrato un mostro senza spada!");
-                        g.salute = 0;
-                        finito[0] = true;
-                        return;
-                    }
-                    break;
-
-                case 'S':
-                    System.out.println("\nHai raccolto la spada!");
-                    g.haSpada = true;
-                    dungeon[g.x][g.y] = '.';
-                    break;
-
-                case 'K':
-                    System.out.println("\nHai raccolto la chiave!");
-                    g.haChiave = true;
-                    dungeon[g.x][g.y] = '.';
-                    break;
-
-                case 'E':
-                    if (g.haChiave) {
-                        System.out.println("\nHAI VINTO! Sei fuggito dal dungeon!");
-                        finito[0] = true;
-                        g.haVinto = true;
-                    }
-                    break;
-            }
-
-            posizionaChiaveEUscita(dungeon, g, chiavePosizionata, uscitaPosizionata);
-        } else {
-            System.out.println("Non puoi uscire dal dungeon!");
-        }
-    }
-
-    public static void main(String[] args) {
-
-        char[][] dungeon = new char[DIMENSIONE][DIMENSIONE];
-        int[][] vitaMostri = new int[DIMENSIONE][DIMENSIONE];
-
-        boolean[] chiavePosizionata = {false};
-        boolean[] uscitaPosizionata = {false};
-        boolean[] finito = {false};
-        int[] mostriRimasti = {NUMERO_MOSTRI};
-
-        Giocatore g = new Giocatore();
-
-        generaDungeon(dungeon, chiavePosizionata, mostriRimasti, uscitaPosizionata, vitaMostri);
-
-        while (!finito[0] && g.salute > 0) {
-            mostraDungeon(dungeon, g);
-            muoviGiocatore(g, dungeon, chiavePosizionata, uscitaPosizionata, mostriRimasti, vitaMostri, finito);
-        }
-
-        if (g.haVinto) {
-            System.out.println("\nComplimenti! Hai completato il dungeon con " + g.oro + " oro!");
-        } else {
-            System.out.println("\nGame Over! Hai accumulato " + g.oro + " oro.");
-        }
-
-        System.out.println("\nGrazie per aver giocato!");
-    }
 }
