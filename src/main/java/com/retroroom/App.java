@@ -1,5 +1,6 @@
 package com.retroroom;
 
+// librerie per il cabinato (interfaccia grafica)
 import javafx.application.Application;
 import javafx.application.Platform;
 import javafx.geometry.Insets;
@@ -18,9 +19,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Scanner;
 
-/**
- * JavaFX App
- */
 public class App extends Application {
 
     private Scoreboard dungeonScoreboard;
@@ -33,7 +31,6 @@ public class App extends Application {
     private Button btnA;
     private Button btnB;
 
-    // Snap Tap / SOCD stacks
     private final List<KeyCode> xInputStack = new ArrayList<>();
     private final List<KeyCode> yInputStack = new ArrayList<>();
 
