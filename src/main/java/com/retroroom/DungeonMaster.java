@@ -1,9 +1,5 @@
 package com.retroroom;
 
-public class DungeonMaster {
-    // Implementazione del gioco Dungeon Master, deve essere un gioco che possa durare all'infinito, con un sistema di punteggio che aumenta nel tempo e una classifica per i migliori punteggi
-    
-    java
 import java.util.Random;
 import java.util.Scanner;
 
@@ -110,7 +106,6 @@ public class DungeonMaster {
 
         System.out.println("\nSalute: " + g.salute + " | Oro: " + g.oro +
                 " | Mostri sconfitti: " + g.mostriSconfitti);
-
         System.out.println("Spada: " + (g.haSpada ? "Si" : "No") +
                 " | Chiave: " + (g.haChiave ? "Si" : "No"));
     }
@@ -194,8 +189,11 @@ public class DungeonMaster {
             }
 
             posizionaChiaveEUscita(dungeon, g, chiavePosizionata, uscitaPosizionata);
+        } else {
+            System.out.println("Non puoi uscire dal dungeon!");
         }
     }
+
     public static void main(String[] args) {
 
         char[][] dungeon = new char[DIMENSIONE][DIMENSIONE];
@@ -213,6 +211,12 @@ public class DungeonMaster {
         while (!finito[0] && g.salute > 0) {
             mostraDungeon(dungeon, g);
             muoviGiocatore(g, dungeon, chiavePosizionata, uscitaPosizionata, mostriRimasti, vitaMostri, finito);
+        }
+
+        if (g.haVinto) {
+            System.out.println("\nComplimenti! Hai completato il dungeon con " + g.oro + " oro!");
+        } else {
+            System.out.println("\nGame Over! Hai accumulato " + g.oro + " oro.");
         }
 
         System.out.println("\nGrazie per aver giocato!");
