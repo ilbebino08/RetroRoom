@@ -1,4 +1,55 @@
-# Analisi tecnica dettagliata: DungeonMaster.java
+# Analisi tecnica dettagliata e approfondita: DungeonMaster.java
+
+## Descrizione generale
+Classe che implementa un dungeon crawler testuale. Gestisce la generazione della mappa, il movimento del giocatore, la gestione dei nemici e la logica di combattimento.
+
+## Attributi principali
+- `mappa` (char[][]): matrice che rappresenta il dungeon (celle: vuoto, muro, nemico, giocatore, uscita)
+- `posGiocatoreX`, `posGiocatoreY` (int): coordinate del giocatore
+- `nemici` (ArrayList<Nemico>): lista dei nemici attivi
+- `uscitaX`, `uscitaY` (int): coordinate dell’uscita
+- `vittoria` (boolean): true se il giocatore raggiunge l’uscita
+
+## Costruttore
+- `DungeonMaster(int larghezza, int altezza, int numNemici)`: genera la mappa, posiziona giocatore, nemici e uscita
+
+## Metodi principali
+### `void mostra()`
+Stampa la mappa attuale su console, mostrando la posizione di tutti gli elementi.
+
+### `boolean muovi(char direzione)`
+Sposta il giocatore nella direzione specificata (`w`, `a`, `s`, `d`).
+- Parametri: `direzione` (char)
+- Restituisce true se il movimento è valido, false se colpisce un muro o esce dai limiti.
+
+### `boolean attacca()`
+Se c’è un nemico adiacente, lo elimina.
+
+### `boolean controllaVittoria()`
+Restituisce true se il giocatore ha raggiunto l’uscita.
+
+## Inner class
+### `Nemico`
+- Attributi: `x`, `y` (int)
+- Metodi: costruttore, `getX()`, `getY()`
+
+## Edge case e note
+- La generazione della mappa può produrre dungeon non risolvibili.
+- Nessuna gestione di thread safety.
+
+## Esempio d’uso
+```java
+DungeonMaster dm = new DungeonMaster(10, 10, 3);
+dm.mostra();
+dm.muovi('w');
+if (dm.attacca()) {
+    System.out.println("Nemico sconfitto!");
+}
+if (dm.controllaVittoria()) {
+    System.out.println("Hai vinto!");
+}
+```
+
 
 ## Package e import
 ```java

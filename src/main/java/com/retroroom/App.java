@@ -2,6 +2,7 @@ package com.retroroom;
 
 import javafx.application.Application;
 import javafx.application.Platform;
+import javafx.animation.AnimationTimer;
 import javafx.animation.PauseTransition;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
@@ -11,13 +12,18 @@ import javafx.scene.control.Label;
 import javafx.scene.control.TextField;
 import javafx.scene.input.KeyCode;
 import javafx.scene.layout.*;
+import javafx.scene.image.Image;
+import javafx.scene.image.ImageView;
 import javafx.scene.paint.Color;
 import javafx.scene.shape.Circle;
 import javafx.stage.Stage;
 import javafx.util.Duration;
 
+import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Scanner;
 import java.util.function.Consumer;
 
@@ -47,6 +53,7 @@ public class App extends Application {
     private GridPane monitorGrid;
     private VBox monitorGridBox;
     private Label monitorGridInfo;
+    private ImageView gameLogoView;
     private StackPane splashOverlay;
     private Label splashTitleLabel;
     private Label splashMessageLabel;
@@ -76,6 +83,15 @@ public class App extends Application {
     // Snap Tap / SOCD stacks
     private final List<KeyCode> xInputStack = new ArrayList<>();
     private final List<KeyCode> yInputStack = new ArrayList<>();
+    private final List<KeyCode> heldInputOrder = new ArrayList<>();
+    private final Map<KeyCode, Long> heldInputNextFireNanos = new HashMap<>();
+
+    private static final long HOLD_REPEAT_INITIAL_DELAY_NS = 220_000_000L;
+    private static final long HOLD_REPEAT_INTERVAL_NS = 85_000_000L;
+    private static final long UI_REFRESH_INTERVAL_NS = 100_000_000L;
+
+    private AnimationTimer heldInputRepeater;
+    private long nextUiRefreshNanos = 0L;
 
     private final String BUTTON_STYLE_NORMAL = "-fx-background-color: #d2691e; -fx-text-fill: white; -fx-font-weight: bold; -fx-background-radius: 50; -fx-min-width: 50; -fx-min-height: 50;";
     private final String BUTTON_STYLE_PRESSED = "-fx-background-color: #8b4500; -fx-text-fill: white; -fx-font-weight: bold; -fx-background-radius: 50; -fx-min-width: 50; -fx-min-height: 50;";
@@ -108,6 +124,7 @@ public class App extends Application {
 
         // Gestione input tastiera
         setupInputHandlers(scene);
+        setupHeldInputRepeater();
 
         stage.setTitle("RetroRoom Arcade");
         stage.setScene(scene);
@@ -121,75 +138,199 @@ public class App extends Application {
     private void setupInputHandlers(Scene scene) {
         scene.setOnKeyPressed(e -> {
             KeyCode code = e.getCode();
-            if (code == InputBindings.Common.UP || code == InputBindings.Common.DOWN) {
-                // Se non è già presente, lo aggiunge in cima (ultimo premuto = prioritario)
-                if (!yInputStack.contains(code)) {
-                    yInputStack.add(code);
-                    updateJoystickVisual();
-                }
-                handleGameplayKey(code);
+
+            // Evita di dipendere dal key-repeat del sistema operativo.
+            if (heldInputNextFireNanos.containsKey(code)) {
                 return;
             }
 
-            if (code == InputBindings.Common.LEFT || code == InputBindings.Common.RIGHT) {
-                if (!xInputStack.contains(code)) {
-                    xInputStack.add(code);
-                    updateJoystickVisual();
-                }
+            if (isVerticalKey(code)) {
+                registerAxisPress(yInputStack, code);
                 handleGameplayKey(code);
+                registerHeldInput(code);
                 return;
             }
 
-            if (code == InputBindings.Menu.START_GAME
-                    || code == InputBindings.Space.FIRE_SECONDARY
-                    || code == InputBindings.Forza4.DROP_SECONDARY) {
-                btnA.arm();
-                btnA.setStyle(BUTTON_STYLE_PRESSED);
+            if (isHorizontalKey(code)) {
+                registerAxisPress(xInputStack, code);
                 handleGameplayKey(code);
+                registerHeldInput(code);
                 return;
             }
 
-            if (code == InputBindings.Dungeon.BACK_TO_MENU
-                    || code == InputBindings.Space.BACK_TO_MENU
-                    || code == InputBindings.Forza4.BACK_TO_MENU) {
-                btnB.arm();
-                btnB.setStyle(BUTTON_STYLE_PRESSED);
+            if (isAButtonKey(code)) {
+                setButtonPressed(btnA, true);
+                handleGameplayKey(code);
+                registerHeldInput(code);
+                return;
+            }
+
+            if (isBButtonKey(code)) {
+                setButtonPressed(btnB, true);
                 handleGameplayKey(code);
                 return;
             }
 
             handleGameplayKey(code);
+            registerHeldInput(code);
         });
 
         scene.setOnKeyReleased(e -> {
             KeyCode code = e.getCode();
-            if (code == InputBindings.Common.UP || code == InputBindings.Common.DOWN) {
-                yInputStack.remove(code);
-                updateJoystickVisual();
+            if (isVerticalKey(code)) {
+                registerAxisRelease(yInputStack, code);
+                unregisterHeldInput(code);
                 return;
             }
 
-            if (code == InputBindings.Common.LEFT || code == InputBindings.Common.RIGHT) {
-                xInputStack.remove(code);
-                updateJoystickVisual();
+            if (isHorizontalKey(code)) {
+                registerAxisRelease(xInputStack, code);
+                unregisterHeldInput(code);
                 return;
             }
 
-            if (code == InputBindings.Menu.START_GAME
-                    || code == InputBindings.Space.FIRE_SECONDARY
-                    || code == InputBindings.Forza4.DROP_SECONDARY) {
-                btnA.disarm();
-                btnA.setStyle(BUTTON_STYLE_NORMAL);
+            if (isAButtonKey(code)) {
+                setButtonPressed(btnA, false);
+                unregisterHeldInput(code);
                 return;
             }
 
-            if (code == InputBindings.Dungeon.BACK_TO_MENU
-                    || code == InputBindings.Space.BACK_TO_MENU
-                    || code == InputBindings.Forza4.BACK_TO_MENU) {
-                btnB.disarm();
-                btnB.setStyle(BUTTON_STYLE_NORMAL);
+            if (isBButtonKey(code)) {
+                setButtonPressed(btnB, false);
+                unregisterHeldInput(code);
+                return;
             }
+
+            unregisterHeldInput(code);
         });
+    }
+
+    private boolean isVerticalKey(KeyCode code) {
+        return code == InputBindings.Common.UP || code == InputBindings.Common.DOWN;
+    }
+
+    private boolean isHorizontalKey(KeyCode code) {
+        return code == InputBindings.Common.LEFT || code == InputBindings.Common.RIGHT;
+    }
+
+    private boolean isAButtonKey(KeyCode code) {
+        return code == InputBindings.Menu.START_GAME
+                || code == InputBindings.Space.FIRE_SECONDARY
+                || code == InputBindings.Forza4.DROP_SECONDARY;
+    }
+
+    private boolean isBButtonKey(KeyCode code) {
+        return code == InputBindings.Dungeon.BACK_TO_MENU
+                || code == InputBindings.Space.BACK_TO_MENU
+                || code == InputBindings.Forza4.BACK_TO_MENU;
+    }
+
+    private void registerAxisPress(List<KeyCode> axisStack, KeyCode code) {
+        if (!axisStack.contains(code)) {
+            axisStack.add(code);
+            updateJoystickVisual();
+        }
+    }
+
+    private void registerAxisRelease(List<KeyCode> axisStack, KeyCode code) {
+        axisStack.remove(code);
+        updateJoystickVisual();
+    }
+
+    private void setButtonPressed(Button button, boolean pressed) {
+        if (pressed) {
+            button.arm();
+            button.setStyle(BUTTON_STYLE_PRESSED);
+        } else {
+            button.disarm();
+            button.setStyle(BUTTON_STYLE_NORMAL);
+        }
+    }
+
+    private void setupHeldInputRepeater() {
+        heldInputRepeater = new AnimationTimer() {
+            @Override
+            public void handle(long now) {
+                // In Forza4 gli input devono restare one-shot (niente ripetizione da tasto tenuto).
+                if (activeGame != CabinetGame.FORZA4 && !heldInputOrder.isEmpty()) {
+                    for (KeyCode code : new ArrayList<>(heldInputOrder)) {
+                        if (!isActiveDirectionalForRepeat(code)) {
+                            continue;
+                        }
+
+                        Long nextFire = heldInputNextFireNanos.get(code);
+                        if (nextFire == null || now < nextFire) {
+                            continue;
+                        }
+
+                        handleGameplayKey(code);
+                        heldInputNextFireNanos.put(code, now + HOLD_REPEAT_INTERVAL_NS);
+                    }
+                }
+
+                tickUiRefresh(now);
+            }
+        };
+        heldInputRepeater.start();
+    }
+
+    private void tickUiRefresh(long now) {
+        if (splashActive || now < nextUiRefreshNanos) {
+            return;
+        }
+
+        if (activeGame == CabinetGame.DUNGEON && dungeonGame != null && !DungeonMaster.isFinished(dungeonGame)) {
+            renderDungeon();
+        } else if (activeGame == CabinetGame.SPACE && spaceGame != null && !spaceGame.vittoria()) {
+            renderSpace();
+        }
+
+        nextUiRefreshNanos = now + UI_REFRESH_INTERVAL_NS;
+    }
+
+    private void registerHeldInput(KeyCode code) {
+        if (!isRepeatableInput(code)) {
+            return;
+        }
+
+        // In Space il fuoco resta one-shot, mentre i movimenti possono ripetersi.
+        if (activeGame == CabinetGame.SPACE
+                && (code == InputBindings.Space.FIRE_PRIMARY || code == InputBindings.Space.FIRE_SECONDARY)) {
+            return;
+        }
+
+        if (!heldInputNextFireNanos.containsKey(code)) {
+            heldInputOrder.add(code);
+            heldInputNextFireNanos.put(code, System.nanoTime() + HOLD_REPEAT_INITIAL_DELAY_NS);
+        }
+    }
+
+    private void unregisterHeldInput(KeyCode code) {
+        heldInputNextFireNanos.remove(code);
+        heldInputOrder.remove(code);
+    }
+
+    private boolean isActiveDirectionalForRepeat(KeyCode code) {
+        if (isHorizontalKey(code)) {
+            return !xInputStack.isEmpty() && xInputStack.get(xInputStack.size() - 1) == code;
+        }
+        if (isVerticalKey(code)) {
+            return !yInputStack.isEmpty() && yInputStack.get(yInputStack.size() - 1) == code;
+        }
+        return true;
+    }
+
+    private boolean isRepeatableInput(KeyCode code) {
+        return code == InputBindings.Common.UP
+                || code == InputBindings.Common.DOWN
+                || code == InputBindings.Common.LEFT
+                || code == InputBindings.Common.RIGHT
+                || code == InputBindings.Space.FIRE_PRIMARY
+                || code == InputBindings.Space.FIRE_SECONDARY
+                || code == InputBindings.Forza4.DROP_PRIMARY
+                || code == InputBindings.Forza4.DROP_SECONDARY
+                || code == InputBindings.Menu.PREVIOUS_GAME
+                || code == InputBindings.Menu.NEXT_GAME;
     }
 
     private void handleGameplayKey(KeyCode code) {
@@ -213,9 +354,7 @@ public class App extends Application {
         if ((activeGame == CabinetGame.DUNGEON && code == InputBindings.Dungeon.BACK_TO_MENU)
                 || (activeGame == CabinetGame.SPACE && code == InputBindings.Space.BACK_TO_MENU)
                 || (activeGame == CabinetGame.FORZA4 && code == InputBindings.Forza4.BACK_TO_MENU)) {
-            activeGame = CabinetGame.MENU;
-            statusLine = "Menu aperto";
-            renderMenu();
+            goToMenu("Menu aperto");
             return;
         }
 
@@ -256,13 +395,13 @@ public class App extends Application {
 
         if (DungeonMaster.isFinished(dungeonGame)) {
             if (DungeonMaster.isWon(dungeonGame)) {
-                int elapsedSeconds = (int) DungeonMaster.getElapsedSeconds(dungeonGame);
-                showLeaderboardSplash("Dungeon Master", "Hai completato il dungeon in " + formatSeconds(elapsedSeconds) + "!", playerName -> {
-                    boolean updated = dungeonScoreboard.addOrUpdateBest(playerName, elapsedSeconds);
+                int elapsedMillis = safeIntMillis(DungeonMaster.getElapsedMillis(dungeonGame));
+                showLeaderboardSplash("Dungeon Master", "Hai completato il dungeon in " + formatElapsed(elapsedMillis) + "!", playerName -> {
+                    boolean updated = dungeonScoreboard.addOrUpdateBest(playerName, elapsedMillis);
                     updateTable(dungeonTableBox, dungeonScoreboard);
                     String resultMessage = updated
-                            ? "Vittoria in " + formatSeconds(elapsedSeconds) + "! Nuovo record per " + playerName
-                            : "Vittoria in " + formatSeconds(elapsedSeconds) + ". Record migliore di " + playerName + " mantenuto";
+                            ? "Vittoria in " + formatElapsed(elapsedMillis) + "! Nuovo record per " + playerName
+                            : "Vittoria in " + formatElapsed(elapsedMillis) + ". Record migliore di " + playerName + " mantenuto";
                     goHomeAfterLeaderboard(resultMessage);
                 });
                 return;
@@ -292,13 +431,13 @@ public class App extends Application {
         }
 
         if (spaceGame.vittoria()) {
-            int elapsedSeconds = (int) spaceGame.getElapsedSeconds();
-            showLeaderboardSplash("Space Invaders", "Hai vinto in " + formatSeconds(elapsedSeconds) + "!", playerName -> {
-                boolean updated = spaceScoreboard.addOrUpdateBest(playerName, elapsedSeconds);
+            int elapsedMillis = safeIntMillis(spaceGame.getElapsedMillis());
+            showLeaderboardSplash("Space Invaders", "Hai vinto in " + formatElapsed(elapsedMillis) + "!", playerName -> {
+                boolean updated = spaceScoreboard.addOrUpdateBest(playerName, elapsedMillis);
                 updateTable(spaceTableBox, spaceScoreboard);
                 String resultMessage = updated
-                        ? "Space completato in " + formatSeconds(elapsedSeconds) + "! Nuovo record per " + playerName
-                        : "Space completato in " + formatSeconds(elapsedSeconds) + ". Record migliore di " + playerName + " mantenuto";
+                        ? "Space completato in " + formatElapsed(elapsedMillis) + "! Nuovo record per " + playerName
+                        : "Space completato in " + formatElapsed(elapsedMillis) + ". Record migliore di " + playerName + " mantenuto";
                 goHomeAfterLeaderboard(resultMessage);
             });
             return;
@@ -346,9 +485,7 @@ public class App extends Application {
             String winner = forza4TurnPlayerOne ? "Giocatore 1" : "Giocatore 2";
             statusLine = "Vince " + winner + "!";
             showSimpleSplash("Forza 4", "Complimenti, " + winner + "!", () -> {
-                activeGame = CabinetGame.MENU;
-                statusLine = "Forza 4: vince " + winner;
-                renderMenu();
+                goToMenu("Forza 4: vince " + winner);
             });
         } else {
             forza4TurnPlayerOne = !forza4TurnPlayerOne;
@@ -432,10 +569,10 @@ public class App extends Application {
         panel.setAlignment(Pos.TOP_CENTER);
         panel.setPrefWidth(300);
         // Stile steampunk semplice: bordi dorati/bronze, sfondo scuro
-        panel.setStyle("-fx-border-color: #cd7f32; -fx-border-width: 5; -fx-background-color: #3e3e3e;");
+        panel.setStyle("-fx-border-color: #581ba7; -fx-border-width: 5; -fx-background-color: #3e3e3e;");
 
         Label titleLabel = new Label(title);
-        titleLabel.setStyle("-fx-text-fill: #cd7f32; -fx-font-size: 24px; -fx-font-weight: bold;");
+        titleLabel.setStyle("-fx-text-fill: #581ba7; -fx-font-size: 24px; -fx-font-weight: bold;");
 
         // Creiamo la visualizzazione della tabella a mano (VBox semplice)
         VBox tableBox = new VBox(5);
@@ -458,7 +595,7 @@ public class App extends Application {
         tableBox.getChildren().clear();
         for (Scoreboard.ScoreEntry entry : scoreboard.getEntries()) {
             String scoreText = (scoreboard == dungeonScoreboard || scoreboard == spaceScoreboard)
-                    ? formatSeconds(entry.getScore())
+                    ? formatElapsed(entry.getScore())
                     : String.valueOf(entry.getScore());
             Label row = new Label(entry.getName() + " : " + scoreText);
             row.setStyle("-fx-text-fill: white; -fx-font-family: 'Monospaced';");
@@ -489,7 +626,7 @@ public class App extends Application {
     }
 
     private void renderMenu() {
-        updateControlsHint();
+        refreshHeaderUi();
         StringBuilder builder = new StringBuilder();
         builder.append("RETRO ROOM - MENU\n\n");
         for (int i = 0; i < menuEntries.length; i++) {
@@ -510,7 +647,7 @@ public class App extends Application {
         if (dungeonGame == null) {
             return;
         }
-        updateControlsHint();
+        refreshHeaderUi();
         String text = DungeonMaster.getHudLine(dungeonGame);
         if (!statusLine.isEmpty()) {
             text += " | " + statusLine;
@@ -523,7 +660,7 @@ public class App extends Application {
             return;
         }
 
-        updateControlsHint();
+        refreshHeaderUi();
 
         String[][] grid = new String[spaceGame.getAltezza()][spaceGame.getLarghezza()];
 
@@ -558,7 +695,7 @@ public class App extends Application {
                 .append('/')
                 .append(spaceGame.getNemiciDaEliminare())
                 .append(" Tempo:")
-                .append(formatSeconds((int) spaceGame.getElapsedSeconds()));
+                .append(formatElapsed(safeIntMillis(spaceGame.getElapsedMillis())));
 
         if (!statusLine.isEmpty()) {
             out.append(" | ").append(statusLine);
@@ -572,7 +709,7 @@ public class App extends Application {
             return;
         }
 
-        updateControlsHint();
+        refreshHeaderUi();
         int[][] board = forza4Game.getTabella();
         int rows = board.length;
         int cols = board[0].length;
@@ -703,14 +840,20 @@ public class App extends Application {
         return row >= 0 && row < board.length && col >= 0 && col < board[0].length && board[row][col] == 1;
     }
 
-    private String formatSeconds(int seconds) {
-        int mins = seconds / 60;
-        int secs = seconds % 60;
-        return String.format("%02d:%02d", mins, secs);
+    private int safeIntMillis(long millis) {
+        return (int) Math.max(0, Math.min(Integer.MAX_VALUE, millis));
+    }
+
+    private String formatElapsed(int millis) {
+        int safeMillis = Math.max(0, millis);
+        int seconds = safeMillis / 1000;
+        int remainderMillis = safeMillis % 1000;
+        return String.format("%d.%03d", seconds, remainderMillis);
     }
 
     private void showSimpleSplash(String gameName, String message, Runnable onFinished) {
         splashActive = true;
+        updateHeaderLogos();
         showSplashOverlay(gameName, message, false);
 
         PauseTransition pause = new PauseTransition(Duration.seconds(1.4));
@@ -726,6 +869,7 @@ public class App extends Application {
 
     private void showLeaderboardSplash(String gameName, String message, Consumer<String> onNameReady) {
         splashActive = true;
+        updateHeaderLogos();
         showSplashOverlay(gameName, message, true);
 
         splashNameField.setOnAction(e -> {
@@ -757,12 +901,22 @@ public class App extends Application {
         splashNameField.setOnAction(null);
         splashOverlay.setVisible(false);
         splashOverlay.setManaged(false);
+        updateHeaderLogos();
     }
 
     private void goHomeAfterLeaderboard(String message) {
+        goToMenu(message);
+    }
+
+    private void goToMenu(String message) {
         activeGame = CabinetGame.MENU;
         statusLine = message;
         renderMenu();
+    }
+
+    private void refreshHeaderUi() {
+        updateHeaderLogos();
+        updateControlsHint();
     }
 
     private void startConsoleListener() {
@@ -836,18 +990,84 @@ public class App extends Application {
         }
     }
 
+    private HBox createLogosBar() {
+        HBox bar = new HBox();
+        bar.setAlignment(Pos.CENTER);
+        bar.setPadding(new Insets(0, 0, 8, 0));
+        bar.setStyle("-fx-background-color: transparent;");
+
+        gameLogoView = createLogoView();
+        gameLogoView.setFitWidth(360);
+        gameLogoView.setFitHeight(100);
+
+        bar.getChildren().add(gameLogoView);
+        updateHeaderLogos();
+        return bar;
+    }
+
+    private ImageView createLogoView() {
+        ImageView view = new ImageView();
+        view.setPreserveRatio(true);
+        return view;
+    }
+
+    private void updateHeaderLogos() {
+        if (gameLogoView == null) {
+            return;
+        }
+
+        gameLogoView.setImage(loadLogo(logoNameFor(activeGame)));
+    }
+
+    private String logoNameFor(CabinetGame game) {
+        switch (game) {
+            case DUNGEON:
+                return "dungeon.png";
+            case SPACE:
+                return "space.png";
+            case FORZA4:
+                return "forza4.png";
+            case MENU:
+            default:
+                return "retroroom.png";
+        }
+    }
+
+    private Image loadLogo(String fileName) {
+        String[] candidates = new String[] {
+                "/com/retroroom/" + fileName,
+                "/com/retroroom/logos/" + fileName,
+                "/com/retroroom/retroroom.png"
+        };
+
+        for (String resourcePath : candidates) {
+            try (InputStream stream = getClass().getResourceAsStream(resourcePath)) {
+                if (stream == null) {
+                    continue;
+                }
+                return new Image(stream);
+            } catch (Exception ex) {
+                // Prova il path successivo.
+            }
+        }
+
+        return null;
+    }
 
     private VBox createCabinato() {
         VBox cabinato = new VBox(20);
         cabinato.setAlignment(Pos.CENTER);
         cabinato.setPadding(new Insets(20));
-        
+        cabinato.setFillWidth(true);
+
+        HBox logoBox = createLogosBar();
+
         // Monitor
         StackPane monitorFrame = new StackPane();
         monitorFrame.setPrefSize(600, 400);
         monitorFrame.setMaxSize(600, 400);
-        monitorFrame.setStyle("-fx-background-color: #000000; -fx-border-color: #8b4513; -fx-border-width: 10; -fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.8), 10, 0, 0, 0);");
-        
+        monitorFrame.setStyle("-fx-background-color: #000000; -fx-border-color: #581ba7; -fx-border-width: 10; -fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.8), 10, 0, 0, 0);");
+
         Label screenText = new Label("PRESS START");
         screenText.setStyle("-fx-text-fill: #00ff00; -fx-font-family: 'Monospaced'; -fx-font-size: 22;");
         screenText.setWrapText(true);
@@ -908,13 +1128,13 @@ public class App extends Application {
         // Controlli
         HBox controls = new HBox(50);
         controls.setAlignment(Pos.CENTER);
-        controls.setStyle("-fx-background-color: #8b4513; -fx-padding: 20; -fx-background-radius: 10;");
-        
+        controls.setStyle("-fx-background-color: #581ba7; -fx-padding: 20; -fx-background-radius: 10;");
+
         // Joystick
         Circle joystickBase = new Circle(40, Color.BLACK);
         joystickStick = new Circle(20, Color.RED);
         StackPane joystick = new StackPane(joystickBase, joystickStick);
-        
+
         // Pulsanti
         HBox buttons = new HBox(15);
         btnA = new Button("A");
@@ -932,7 +1152,7 @@ public class App extends Application {
         controlsHintLabel.setAlignment(Pos.CENTER);
         updateControlsHint();
 
-        cabinato.getChildren().addAll(monitorFrame, controls, controlsHintLabel);
+        cabinato.getChildren().addAll(logoBox, monitorFrame, controls, controlsHintLabel);
         return cabinato;
     }
 

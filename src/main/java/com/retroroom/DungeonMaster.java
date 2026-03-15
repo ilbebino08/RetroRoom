@@ -69,9 +69,14 @@ public class DungeonMaster {
         return state.giocatore.salute;
     }
 
-    public static long getElapsedSeconds(GameState state) {
+    public static long getElapsedMillis(GameState state) {
         long end = state.endMillis > 0 ? state.endMillis : System.currentTimeMillis();
-        return Math.max(0, (end - state.startMillis) / 1000);
+        return Math.max(0, end - state.startMillis);
+    }
+
+    // Compatibilita: mantiene il vecchio metodo ma senza usarlo nella UI principale.
+    public static long getElapsedSeconds(GameState state) {
+        return getElapsedMillis(state) / 1000;
     }
 
     public static String move(GameState state, char movimento) {
@@ -184,10 +189,13 @@ public class DungeonMaster {
     }
 
     public static String getHudLine(GameState state) {
+        long elapsedMillis = getElapsedMillis(state);
+        long seconds = elapsedMillis / 1000;
+        long millis = elapsedMillis % 1000;
         return "HP:" + state.giocatore.salute
                 + " Oro:" + state.giocatore.oro
                 + " Mostri:" + state.giocatore.mostriSconfitti + "/" + NUMERO_MOSTRI
-                + " Tempo:" + getElapsedSeconds(state) + "s";
+                + " Tempo:" + seconds + "." + String.format("%03d", millis);
     }
 
     private static String tileToEmoji(char tile) {

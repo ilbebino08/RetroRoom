@@ -1,4 +1,64 @@
-# Analisi tecnica dettagliata: SpaceInvaders.java
+# Analisi tecnica dettagliata e approfondita: SpaceInvaders.java
+
+## Descrizione generale
+Classe che implementa la logica di un mini Space Invaders a griglia. Gestisce il movimento del giocatore, la generazione e gestione dei nemici, il conteggio dei nemici eliminati e la condizione di vittoria. Tutte le operazioni sono eseguite in modalità testuale.
+
+## Costanti di gioco
+- `larghezza` (int): larghezza della griglia di gioco (default 10).
+- `altezza` (int): altezza della griglia di gioco (default 10).
+- `nemiciDaEliminare` (int): numero di nemici da eliminare per vincere (default 10).
+
+## Variabili di stato
+- `posizioneGiocatoreX`, `posizioneGiocatoreY` (int): coordinate del giocatore.
+- `posizioneNemicoX`, `posizioneNemicoY` (int[]): array di coordinate dei 3 nemici attivi.
+- `nemiciEliminati` (int): contatore dei nemici eliminati.
+- `startMillis`, `endMillis` (long): gestione del tempo di gioco.
+- `rand` (Random): generatore di numeri casuali per spawn nemici.
+
+## Costruttore
+### `SpaceInvaders()`
+Inizializza le posizioni del giocatore e dei nemici, azzera i timer. Nessun parametro.
+
+## Metodi principali
+### `void mostra()`
+Stampa su console la griglia di gioco, mostrando:
+- Il giocatore (`[^]`)
+- I nemici (`(X)`)
+- Celle vuote (` . `)
+- Stato attuale dei nemici eliminati.
+
+### `void muovi(char input)`
+Gestisce il movimento e l’attacco:
+- `'a'`: sposta il giocatore a sinistra (se possibile)
+- `'d'`: sposta il giocatore a destra (se possibile)
+- `'s'`: attacca nella colonna corrente; se c’è un nemico, lo elimina e lo respawna in posizione casuale. Aggiorna il contatore e il timer di fine partita se necessario.
+- Parametri: `input` (char) — carattere di comando.
+- Edge case: input non valido viene ignorato.
+
+### `boolean vittoria()`
+Restituisce true se il numero di nemici eliminati è maggiore o uguale a `nemiciDaEliminare`.
+
+### Getter
+- `getNemiciEliminati()`, `getLarghezza()`, `getAltezza()`, `getNemiciDaEliminare()`, `getPosizioneGiocatoreX()`, `getPosizioneGiocatoreY()`, `getPosizioneNemicoX()`, `getPosizioneNemicoY()`, `getElapsedMillis()`, `getElapsedSeconds()`
+- Forniscono accesso allo stato interno. Nessun effetto collaterale.
+- **Nota**: `getElapsedMillis()` ora restituisce i millisecondi trascorsi; `getElapsedSeconds()` è mantenuto per compatibilità e calcola i secondi dividendo i millisecondi.
+
+## Edge case e note
+- I nemici vengono sempre respawnati in posizioni casuali, ma potrebbero sovrapporsi.
+- Il metodo `muovi` non gestisce input diversi da quelli previsti.
+- Nessuna gestione di thread safety: la classe è pensata per uso single-thread.
+
+## Esempio d’uso
+```java
+SpaceInvaders game = new SpaceInvaders();
+game.mostra();
+game.muovi('a');
+game.muovi('s');
+if (game.vittoria()) {
+    System.out.println("Hai vinto!");
+}
+```
+
 
 ## Package e import
 ```java

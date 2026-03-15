@@ -1,4 +1,59 @@
-# Analisi tecnica dettagliata: Scoreboard.java
+# Analisi tecnica dettagliata e approfondita: Scoreboard.java
+
+## Descrizione generale
+Classe thread-safe per la gestione di una classifica di punteggi. Permette l’aggiunta, aggiornamento, rimozione e ordinamento di record, mantenendo solo il miglior punteggio per ogni giocatore.
+
+## Enum
+### `SortOrder`
+- `DESCENDING`: punteggi dal più alto al più basso (default)
+- `ASCENDING`: punteggi dal più basso al più alto
+
+## Attributi principali
+- `maxSize` (int): dimensione massima della classifica
+- `entries` (ArrayList<ScoreEntry>): lista dei record
+- `sortOrder` (SortOrder): ordinamento attuale
+
+## Costruttori
+- `Scoreboard(int maxSize)`: crea una classifica con ordinamento decrescente
+- `Scoreboard(int maxSize, SortOrder sortOrder)`: specifica ordinamento
+
+## Metodi principali
+### `synchronized void addScore(String name, int score)`
+Aggiunge o aggiorna il punteggio di un giocatore. Se il nome esiste, aggiorna solo se il nuovo punteggio è migliore.
+
+### `synchronized boolean addOrUpdateBest(String name, int score)`
+Come sopra, ma restituisce true se la classifica è cambiata.
+- Parametri: `name` (String), `score` (int)
+- Edge case: nomi null o vuoti ignorati.
+
+### `synchronized boolean removeByName(String name)`
+Rimuove il record associato al nome (case-insensitive).
+
+### `synchronized List<ScoreEntry> getEntries()`
+Restituisce una copia della lista dei record.
+
+## Metodi privati
+- `isBetter(int newScore, int oldScore)`: verifica se il nuovo punteggio è migliore secondo l’ordinamento
+- `sortAndTrim()`: ordina e rimuove l’ultimo se la lista supera `maxSize`
+
+## Inner class
+### `ScoreEntry`
+- Attributi: `name` (String), `score` (int)
+- Metodi: costruttore, `getName()`, `getScore()`
+
+## Thread safety
+Tutti i metodi pubblici che modificano la classifica sono `synchronized`.
+
+## Esempio d’uso
+```java
+Scoreboard sb = new Scoreboard(10);
+sb.addScore("Mario", 100);
+sb.addScore("Luigi", 80);
+for (Scoreboard.ScoreEntry e : sb.getEntries()) {
+    System.out.println(e.getName() + ": " + e.getScore());
+}
+```
+
 
 ## Package e import
 ```java

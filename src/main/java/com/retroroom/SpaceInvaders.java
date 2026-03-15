@@ -139,8 +139,13 @@ public class SpaceInvaders {
         return posizioneNemicoY.clone();
     }
 
-    public long getElapsedSeconds() {
+    public long getElapsedMillis() {
         long end = endMillis > 0 ? endMillis : System.currentTimeMillis();
-        return Math.max(0, (end - startMillis) / 1000);
+        return Math.max(0, end - startMillis);
+    }
+
+    // Compatibilita con eventuale codice esistente.
+    public long getElapsedSeconds() {
+        return getElapsedMillis() / 1000;
     }
 }

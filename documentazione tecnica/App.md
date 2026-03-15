@@ -1,4 +1,45 @@
-# Analisi tecnica dettagliata: App.java
+# Analisi tecnica dettagliata e approfondita: App.java
+
+## Descrizione generale
+Classe principale dell’applicazione JavaFX. Gestisce l’avvio, la navigazione tra giochi, la visualizzazione delle schermate e l’integrazione delle componenti (scoreboard, binding input, giochi).
+
+## Attributi principali
+- `primaryStage` (Stage): finestra principale dell’applicazione
+- `scoreboard` (Scoreboard): classifica globale
+- `inputBindings` (InputBindings): configurazione dei controlli
+- `currentGame` (Object): riferimento al gioco attivo
+
+## Metodi principali
+### `void start(Stage primaryStage)`
+Metodo di ingresso JavaFX. Inizializza la finestra, carica la schermata principale e gestisce la navigazione.
+
+### `void mostraMenu()`
+Visualizza il menu principale con la selezione dei giochi.
+
+### `void avviaGioco(String nomeGioco)`
+Avvia il gioco selezionato, istanziando la classe corrispondente e integrando scoreboard e inputBindings.
+- Parametri: `nomeGioco` (String) — nome identificativo del gioco
+- Edge case: nomi non validi mostrano errore.
+
+### `void mostraScoreboard()`
+Visualizza la classifica globale.
+
+### `void mostraImpostazioni()`
+Permette la configurazione dei controlli tramite InputBindings.
+
+## Edge case e note
+- La classe non gestisce la persistenza dei dati tra sessioni.
+- Non thread-safe: uso single-thread.
+- L’integrazione di nuovi giochi richiede la modifica di `avviaGioco`.
+
+## Esempio d’uso
+```java
+// Avvio applicazione JavaFX
+double main(String[] args) {
+    Application.launch(App.class, args);
+}
+```
+
 
 ## Import e dichiarazione di package
 

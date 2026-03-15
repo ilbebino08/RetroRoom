@@ -22,8 +22,8 @@ public final class InputBindings {
     }
 
     public static final class Menu {
-        public static final KeyCode PREVIOUS_GAME = Common.LEFT;
-        public static final KeyCode NEXT_GAME = Common.RIGHT;
+        public static final KeyCode PREVIOUS_GAME = Common.UP;
+        public static final KeyCode NEXT_GAME = Common.DOWN;
         public static final KeyCode START_GAME = KeyCode.P;
 
         private Menu() {

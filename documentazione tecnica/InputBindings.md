@@ -1,4 +1,50 @@
-# Analisi tecnica dettagliata: InputBindings.java
+# Analisi tecnica dettagliata e approfondita: InputBindings.java
+
+## Descrizione generale
+Classe di utility per la gestione dei binding tra tasti e azioni. Permette di associare, rimuovere e recuperare azioni legate a specifici tasti, supportando la configurazione dinamica dei controlli.
+
+## Attributi principali
+- `bindings` (HashMap<String, String>): mappa che associa tasti (come stringhe) ad azioni (stringhe).
+
+## Costruttore
+- `InputBindings()`: inizializza la mappa vuota.
+
+## Metodi principali
+### Binding predefiniti per Menu
+- `PREVIOUS_GAME`: ora associato a `Common.UP` (prima era `Common.LEFT`)
+- `NEXT_GAME`: ora associato a `Common.DOWN` (prima era `Common.RIGHT`)
+
+### `void bind(String key, String action)`
+Associa un’azione a un tasto. Se il tasto è già associato, sovrascrive l’azione precedente.
+- Parametri: `key` (String), `action` (String)
+- Edge case: chiavi o azioni null vengono ignorate.
+
+### `String getAction(String key)`
+Restituisce l’azione associata al tasto, o null se non esiste.
+
+### `void unbind(String key)`
+Rimuove l’associazione per il tasto specificato.
+
+### `Set<String> getBoundKeys()`
+Restituisce l’insieme dei tasti attualmente associati.
+
+## Thread safety
+Non thread-safe: la classe non sincronizza l’accesso alla mappa.
+
+## Modifiche recenti
+- I binding predefiniti del menu sono ora:
+  - `PREVIOUS_GAME = Common.UP` (prima era `Common.LEFT`)
+  - `NEXT_GAME = Common.DOWN` (prima era `Common.RIGHT`)
+
+## Esempio d’uso
+```java
+InputBindings ib = new InputBindings();
+ib.bind("W", "Su");
+ib.bind("S", "Giu");
+System.out.println(ib.getAction("W")); // "Su"
+ib.unbind("W");
+```
+
 
 ## Package e import
 ```java
