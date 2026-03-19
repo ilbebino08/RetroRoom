@@ -1,203 +1,134 @@
-# Analisi tecnica dettagliata e approfondita: DungeonMaster.java
+# Documentazione tecnica approfondita: DungeonMaster.java
 
-## Descrizione generale
-Classe che implementa un dungeon crawler testuale. Gestisce la generazione della mappa, il movimento del giocatore, la gestione dei nemici e la logica di combattimento.
+Percorso sorgente: `src/main/java/com/retroroom/DungeonMaster.java`
 
-## Attributi principali
-- `mappa` (char[][]): matrice che rappresenta il dungeon (celle: vuoto, muro, nemico, giocatore, uscita)
-- `posGiocatoreX`, `posGiocatoreY` (int): coordinate del giocatore
-- `nemici` (ArrayList<Nemico>): lista dei nemici attivi
-- `uscitaX`, `uscitaY` (int): coordinate dell’uscita
-- `vittoria` (boolean): true se il giocatore raggiunge l’uscita
+Obiettivo del documento
+----------------------
+Fornire una descrizione esaustiva della classe `DungeonMaster`, che implementa il motore di gioco per la modalità Dungeon Master: generazione mappa, stato partita, interazione giocatore/mostri/oggetti, misurazione del tempo e interfacce per la UI.
 
-## Costruttore
-- `DungeonMaster(int larghezza, int altezza, int numNemici)`: genera la mappa, posiziona giocatore, nemici e uscita
+Sommario
+--------
+- Tipo: classe procedurale con inner classes per rappresentare `Giocatore` e `GameState`.
+- Principali responsabilità:
+  - generazione casuale del dungeon;
+  - gestione dello stato di gioco e delle entità;
+  - risposte agli input di movimento;
+  - esposizione di metodi di rendering (testuale e emoji grid) e di HUD.
 
-## Metodi principali
-### `void mostra()`
-Stampa la mappa attuale su console, mostrando la posizione di tutti gli elementi.
+Struttura dati e invarianti
+--------------------------
+1. Costanti
+   - `DIMENSIONE = 10` — dimensione quadrata del dungeon. Invariante: `DIMENSIONE > 0`.
+   - `NUMERO_MOSTRI = 6` — numero di mostri da posizionare inizialmente.
+   - `DANNO_SPADA = 20`, `VITA_MOSTRO = 20` — parametri di combattimento.
 
-### `boolean muovi(char direzione)`
-Sposta il giocatore nella direzione specificata (`w`, `a`, `s`, `d`).
-- Parametri: `direzione` (char)
-- Restituisce true se il movimento è valido, false se colpisce un muro o esce dai limiti.
+2. Inner classes
+   - `static class Giocatore` — campi: `int x, y; int salute; int oro; boolean haSpada; boolean haChiave; int mostriSconfitti; boolean haVinto;`.
+   - `public static class GameState` — campi:
+     - `char[][] dungeon` (DIMENSIONE x DIMENSIONE)
+     - `int[][] vitaMostri` (DIMENSIONE x DIMENSIONE)
+     - `boolean[] chiavePosizionata`, `boolean[] uscitaPosizionata`, `boolean[] finito` (usati come wrapper mutabili)
+     - `int[] mostriRimasti`
+     - `Giocatore giocatore`
+     - `long startMillis`, `long endMillis`
 
-### `boolean attacca()`
-Se c’è un nemico adiacente, lo elimina.
+   - Motivazione per array wrapper: semplicità di passaggio per reference mutabile senza introdurre classi wrapper ulteriori (scelta pragmatica, meno verbosa, ma meno leggibile).
 
-### `boolean controllaVittoria()`
-Restituisce true se il giocatore ha raggiunto l’uscita.
+Generazione del dungeon (`generaDungeon`)
+----------------------------------------
+- Inizializza tutte le celle come '.' e `vitaMostri` a zero.
+- Posiziona `NUMERO_MOSTRI` con coordinate casuali: `dungeon[x][y] = 'M'` e `vitaMostri[x][y] = VITA_MOSTRO`.
+- Posiziona una spada 'S' in una cella random.
+- Non c'è controllo per collisioni: la probabilità di sovrapposizione esiste (mostro e spada nella stessa posizione). Se desiderato, implementare un loop che cerca una cella vuota.
 
-## Inner class
-### `Nemico`
-- Attributi: `x`, `y` (int)
-- Metodi: costruttore, `getX()`, `getY()`
+Creazione di una nuova partita (`newGame`)
+-----------------------------------------
+- Crea `GameState state = new GameState()` e chiama `generaDungeon`. Imposta `state.startMillis = System.currentTimeMillis()`.
+- Ritorna lo stato.
 
-## Edge case e note
-- La generazione della mappa può produrre dungeon non risolvibili.
-- Nessuna gestione di thread safety.
+Movimento del giocatore e interazioni (`move`)
+----------------------------------------------
+Signature: `public static String move(GameState state, char movimento)`
+- Controlli iniziali: se `isFinished(state)` ritorna "Partita conclusa".
+- Calcolo delle coordinate nuove (`nuovaX`, `nuovaY`) in base a `'w','a','s','d'`.
+- Controllo bounds: se fuori mappa ritorna "Muro!".
+- Aggiorna la posizione del giocatore nello stato.
+- Valuta il contenuto della cella `cella = state.dungeon[x][y]` e comportamenti:
+  - 'M' (mostro):
+    - se `giocatore.haSpada`: decrementa `vitaMostri[x][y]` di `DANNO_SPADA`, decrementa la `salute` del giocatore di un valore casuale `[10..18]`;
+      - se vitaMostri <= 0: rimuove 'M' -> '.', aumenta oro di 20, incrementa `mostriSconfitti` e decrementa `mostriRimasti`.
+    - se non ha spada: `giocatore.salute = 0`, `finito[0] = true`, `endMillis = now` -> ritorna "GAME OVER: mostro senza spada".
+  - 'S' (spada): assegna `haSpada=true` e rimuove 'S'.
+  - 'K' (chiave): assegna `haChiave=true` e rimuove 'K'.
+  - 'E' (uscita): se `haChiave` true, imposta `finito` e `haVinto` e `endMillis = now` e ritorna "HAI VINTO".
+- Dopo ogni movimento, verifica `salute <= 0` per impostare game over.
+- Alla fine chiama `posizionaChiaveEUscitaSilenziosa(...)` per piazzare key/exit quando condizioni soddisfatte.
 
-## Esempio d’uso
-```java
-DungeonMaster dm = new DungeonMaster(10, 10, 3);
-dm.mostra();
-dm.muovi('w');
-if (dm.attacca()) {
-    System.out.println("Nemico sconfitto!");
-}
-if (dm.controllaVittoria()) {
-    System.out.println("Hai vinto!");
-}
-```
+Dettagli di combattimento e bilanciamento
+----------------------------------------
+- Il danno inflitto dalla spada è costante (`DANNO_SPADA`) mentre il danno subito dal giocatore è casuale tra 10 e 18.
+- Quando il giocatore colpisce un mostro, lo stato del mostro è persistito in `vitaMostri` — utile per combattimenti multipli su cella.
+- Possibile miglioramento: normalizzare RNG tramite seed e parametri configurabili per test.
 
+Gestione tempo e HUD
+--------------------
+- `startMillis` e `endMillis` sono usati per calcolare `getElapsedMillis`: `end > 0 ? end - start : now - start`.
+- `getHudLine(GameState)` formatta la stringa HUD: `HP:... Oro:... Mostri:... Tempo: s.mmm` — importante: restituisce secondi e millisecondi come richiesto.
 
-## Package e import
-```java
-package com.retroroom;
-import java.util.Random;
-```
-**Cosa fa:**
-- Definisce il namespace e importa la classe Random per la generazione di numeri casuali.
-- La classe è completamente statica, non serve istanziare DungeonMaster.
+Rendering: `getEmojiGrid` e `render`
+-----------------------------------
+- `getEmojiGrid` mappa ogni tile a emoji:
+  - Giocatore: "😀" (ma vedi note su supporto font)
+  - 'M' -> "👹"; 'S' -> "🔪"; 'K' -> "🔑"; 'E' -> "🚪"; '.' -> "".
+- `render(GameState)` costruisce una rappresentazione testuale con `🟦` per giocatore nella versione testuale.
 
----
+Problemi con emoji e font
+-------------------------
+- Se alcune emoji appaiono come rettangoli vuoti significa che la font di default JavaFX non contiene quei glyph. Alternative:
+  - usare immagini (sprite) per ciascuna tile e `ImageView` nelle celle;
+  - usare caratteri Unicode più comuni o ASCII fallback;
+  - includere e forzare il caricamento di una font che supporti emoji (può non essere portabile).
 
-## Costanti di gioco
-```java
-public static final int DIMENSIONE = 10;
-public static final int NUMERO_MOSTRI = 6;
-public static final int DANNO_SPADA = 20;
-public static final int VITA_MOSTRO = 20;
-```
-**Cosa fa:**
-- Definisce le dimensioni della mappa, il numero di mostri, il danno inflitto dalla spada e la vita iniziale dei mostri.
+Posizionamento della chiave e dell'uscita
+----------------------------------------
+- `posizionaChiaveEUscitaSilenziosa` posiziona la chiave casualmente quando `mostriSconfitti >= NUMERO_MOSTRI` e poi posiziona l'uscita quando il giocatore ha la chiave.
+- Nota: posizionamento casuale potrebbe mettere la chiave/uscita sopra il giocatore o su una cella già occupata; migliorare con ricerca di cella libera.
 
----
+Robustezza, error handling e logging
+------------------------------------
+- Il codice si basa su ritorni stringa per reportare eventi (`evento`), che `App` usa per mostrare `statusLine`.
+- Le eccezioni non sono propagate: la classe preferisce gestire internamente e lasciare ad `App` la gestione dell'UI in caso di stato anomalo.
+- Per debug/aggressività maggiore, aggiungere logger (es. `java.util.logging.Logger`) per loggare eventi critici e condizioni anomale (es. sovrapposizioni di posizionamento).
 
-## Random
-```java
-private static Random rand = new Random();
-```
-**Cosa fa:**
-- Oggetto per generare numeri casuali, usato per posizionare elementi nella mappa.
+Test consigliati
+----------------
+1. Unit test per `generaDungeon`:
+   - verificare che la griglia sia piena di '.' o con i simboli previsti e che `vitaMostri` sia settata correttamente per le celle dei mostri.
+   - testare che `mostriRimasti[0] == NUMERO_MOSTRI` dopo generazione.
+2. Unit test per `move`:
+   - testing movement bounds (muro), pickup spada/chiave, combattimento con e senza spada, vittoria per uscita.
+   - usare `Random` con seed (necessaria modifica) per rendere il test deterministico.
+3. Edge-case: test per posizionamento repetuto (assicurarsi che `generaDungeon` non sbagli con array index out-of-bound).
 
----
+Refactor consigliati
+--------------------
+- Sostituire gli array di wrapper booleani (`boolean[] chiavePosizionata`) con campi boolean in `GameState` per chiarezza.
+- Introdurre una classe `Tile` o `Entity` per rappresentare meglio cosa c'è in ogni cella (mostro con hp, spada, ecc.).
+- Separare la logica di generazione in una `DungeonGenerator` per facilitare test e parametrizzazione.
+- Implementare Random injection per test deterministici (`newGame(Random rand)`).
 
-## Classe interna Giocatore
-```java
-static class Giocatore {
-    int x, y;
-    int salute;
-    int oro;
-    boolean haSpada;
-    boolean haChiave;
-    int mostriSconfitti;
-    boolean haVinto;
-    Giocatore() { ... }
-}
-```
-**Cosa fa:**
-- Rappresenta lo stato del giocatore: posizione, salute, oro, oggetti raccolti, mostri sconfitti, stato di vittoria.
-- Il costruttore inizializza tutti i valori di partenza.
+API pubbliche (riassunto)
+-------------------------
+- `GameState newGame()`
+- `boolean isFinished(GameState)`
+- `boolean isWon(GameState)`
+- `long getElapsedMillis(GameState)`
+- `String[][] getEmojiGrid(GameState)`
+- `String getHudLine(GameState)`
+- `String move(GameState, char movimento)`
 
----
+Note finali
+-----------
+`DungeonMaster` è una buona base per un gioco a griglia. Per un progetto più ampio considerare di usare classi più descrittive per le entità, dependency injection per Random e separare generazione, logica e rendering. Posso applicare questi refactor e aggiungere unit test se vuoi.
 
-## Classe GameState
-```java
-public static class GameState {
-    private final char[][] dungeon = new char[DIMENSIONE][DIMENSIONE];
-    private final int[][] vitaMostri = new int[DIMENSIONE][DIMENSIONE];
-    private final boolean[] chiavePosizionata = {false};
-    private final boolean[] uscitaPosizionata = {false};
-    private final boolean[] finito = {false};
-    private final int[] mostriRimasti = {NUMERO_MOSTRI};
-    private final Giocatore giocatore = new Giocatore();
-    private long startMillis;
-    private long endMillis;
-}
-```
-**Cosa fa:**
-- Rappresenta lo stato globale della partita: mappa, vita dei mostri, flag per chiave/uscita, stato di fine partita, mostri rimasti, giocatore, timer.
-- Tutti i dati sono incapsulati e gestiti tramite questa classe.
-
----
-
-## Avvio partita
-```java
-public static GameState newGame() { ... }
-```
-**Cosa fa:**
-- Crea un nuovo stato di gioco, genera il dungeon, imposta il timer di inizio.
-
----
-
-## Query di stato
-```java
-public static boolean isFinished(GameState state) { ... }
-public static boolean isWon(GameState state) { ... }
-public static int getGold(GameState state) { ... }
-public static int getHealth(GameState state) { ... }
-public static long getElapsedSeconds(GameState state) { ... }
-```
-**Cosa fa:**
-- Metodi di utilità per interrogare lo stato della partita (fine, vittoria, oro, salute, tempo trascorso).
-
----
-
-## Movimento e logica di gioco
-```java
-public static String move(GameState state, char movimento) { ... }
-```
-**Cosa fa:**
-- Gestisce il movimento del giocatore sulla mappa.
-- Controlla collisioni con muri, mostri, spada, chiave, uscita.
-- Gestisce il combattimento: se il giocatore ha la spada può colpire i mostri, altrimenti perde subito.
-- Aggiorna salute, oro, stato di vittoria/sconfitta, posiziona chiave e uscita quando necessario.
-- Restituisce una stringa che descrive l'evento accaduto.
-- Aggiorna i timer di fine partita.
-
----
-
-## Rendering e HUD
-```java
-public static String render(GameState state) { ... }
-public static String[][] getEmojiGrid(GameState state) { ... }
-public static String getHudLine(GameState state) { ... }
-```
-**Cosa fa:**
-- Genera una rappresentazione testuale o grafica (emoji) della mappa e dell'HUD (salute, oro, mostri sconfitti, tempo).
-- Il giocatore è rappresentato con emoji diverse rispetto agli altri elementi.
-
----
-
-## Conversione simboli in emoji
-```java
-private static String tileToEmoji(char tile) { ... }
-```
-**Cosa fa:**
-- Converte i simboli della mappa in emoji per la visualizzazione grafica.
-
----
-
-## Posizionamento chiave e uscita
-```java
-private static void posizionaChiaveEUscitaSilenziosa(...)
-```
-**Cosa fa:**
-- Posiziona la chiave quando tutti i mostri sono sconfitti.
-- Posiziona l'uscita quando il giocatore raccoglie la chiave.
-
----
-
-## Generazione dungeon
-```java
-public static void generaDungeon(char[][] dungeon, boolean[] chiavePosizionata, int[] mostriRimasti, boolean[] uscitaPosizionata, int[][] vitaMostri) { ... }
-```
-**Cosa fa:**
-- Inizializza la mappa, posiziona mostri, spada, resetta chiave e uscita.
-- Usa numeri casuali per la posizione degli elementi.
-
----
-
-## Conclusione
-Questa classe incapsula tutta la logica di un dungeon crawler a turni, gestendo stato, movimento, combattimento, raccolta oggetti e condizioni di vittoria/sconfitta.
+Fine del documento.

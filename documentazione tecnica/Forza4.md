@@ -1,119 +1,108 @@
-# Analisi tecnica dettagliata e approfondita: Forza4.java
+# Documentazione tecnica approfondita: Forza4.java
 
-## Descrizione generale
-Classe che implementa la logica del gioco Forza4 su griglia 7x6. Gestisce la disposizione delle pedine, il controllo delle condizioni di vittoria e la gestione dei turni tra due giocatori.
+Percorso sorgente: `src/main/java/com/retroroom/Forza4.java`
 
-## Attributi principali
-- `griglia` (int[][]): matrice 7x6 che rappresenta la plancia di gioco (0=vuoto, 1=giocatore1, 2=giocatore2)
-- `giocatoreCorrente` (int): indica il giocatore attivo (1 o 2)
-- `vittoria` (boolean): true se la partita è terminata con una vittoria
+Scopo del documento
+-------------------
+Questa doc espande in modo esaustivo la classe `Forza4`, descrivendone struttura, API, comportamento, complessità, casi limite e test consigliati. L'obiettivo è avere una specifica chiara per manutenzione, correzione dei bug noti e aggiunta di funzionalità.
 
-## Costruttore
-- `Forza4()`: inizializza la griglia vuota e imposta il giocatore corrente a 1.
+Breve panoramica
+----------------
+- `Forza4` rappresenta una griglia di gioco con metodi per inserire pedine e verificare vittorie locali.
+- Valori nella matrice `tabella`: `0` = vuoto, `1` = pedina gioc.1, `2` = pedina gioc.2.
 
-## Metodi principali
-### `boolean inserisci(int colonna)`
-Inserisce una pedina nella colonna specificata per il giocatore corrente.
-- Parametri: `colonna` (int) — indice da 0 a 6
-- Restituisce true se l’inserimento ha successo, false se la colonna è piena o fuori range.
-- Edge case: colonne piene o indici non validi.
+Campi e invarianti
+------------------
+- `private int[][] tabella;` — matrice `righe x colonne`.
+- Invariante: `tabella != null`, `tabella.length == righe`, `tabella[0].length == colonne`, tutte le celle contengono valori >= 0.
 
-### `boolean controllaVittoria()`
-Verifica se il giocatore corrente ha vinto dopo l’ultima mossa.
+Costruttore
+-----------
+- `Forza4(int righe, int colonne)` inizializza `tabella = new int[righe][colonne]` e lascia tutte le celle a 0.
+- Edge case: valori di `righe` o `colonne` <= 0 non gestiti esplicitamente — si può aggiungere validazione e lancio di `IllegalArgumentException`.
 
-### `void cambiaGiocatore()`
-Passa il turno all’altro giocatore.
+Metodo `inserisciPedina` — comportamento
+--------------------------------------
+Signature: `public boolean inserisciPedina(int colonna, boolean giocatore)`
+- Scopo: inserire la pedina del giocatore (1 o 2) nella colonna specificata, cadendo nella prima cella vuota partendo dal fondo.
+- Loop: `for (int i = tabella.length - 1; i >= 0; i--)` — si cerca il primo indice `i` con `tabella[i][colonna] == 0` e lo si assegna a `pedina`.
+- Ritorna `true` se inserita, `false` se la colonna è piena.
+- Assunzioni: `0 <= colonna < tabella[0].length`. Se `colonna` out-of-bound il codice lancerà `ArrayIndexOutOfBoundsException`; si raccomanda validazione o gestione controllata.
 
-### `int getGiocatoreCorrente()`
-Restituisce il numero del giocatore attivo.
+Metodo `checkWin` — comportamento e bug
+--------------------------------------
+Signature: `public boolean checkWin(int i, int j)`
+- Intento: verificare se la cella `(i,j)` contiene una pedina che è parte di una linea di 4 pedine dello stesso giocatore.
+- Logica attuale: chiama `checkDirection(i, j, 0,1, pedina)` ecc. per le 4 direzioni.
 
-### `int[][] getGriglia()`
-Restituisce una copia della griglia di gioco.
+Bug nella funzione `checkDirection` del sorgente attuale
+- L'implementazione attuale è errata: sposta gli indici `i,j` in avanti fino a trovare uno diverso, poi conta andando all'indietro — ma questo non conta la cella di partenza correttamente e può portare a false negative.
+- Ritorna `count == 3` che è fragile e poco leggibile.
 
-## Edge case e note
-- La classe non gestisce input non validi (es. colonne negative).
-- Nessuna gestione di thread safety: uso single-thread.
+Correzione consigliata
+----------------------
+Usare l'algoritmo standard:
+1. total = 1 (conta la cella corrente)
+2. per step = 1..n: if cell(i+dr*step, j+dc*step) == pedina, total++ else break
+3. per step = 1..n: if cell(i-dr*step, j-dc*step) == pedina, total++ else break
+4. return total >= 4
 
-## Esempio d’uso
+Implementazione proposta di `checkDirection` (snippet):
 ```java
-Forza4 f = new Forza4();
-f.inserisci(3);
-f.cambiaGiocatore();
-if (f.controllaVittoria()) {
-    System.out.println("Vittoria!");
+private int countLine(int[][] board, int row, int col, int dr, int dc, int pedina) {
+  int total = 1;
+  int r = row + dr, c = col + dc;
+  while (r >= 0 && r < board.length && c >= 0 && c < board[0].length && board[r][c] == pedina) {
+    total++; r += dr; c += dc;
+  }
+  r = row - dr; c = col - dc;
+  while (r >= 0 && r < board.length && c >= 0 && c < board[0].length && board[r][c] == pedina) {
+    total++; r -= dr; c -= dc;
+  }
+  return total;
+}
+
+public boolean checkWin(int i, int j) {
+  int pedina = tabella[i][j];
+  if (pedina == 0) return false;
+  return countLine(tabella, i, j, 0, 1, pedina) >= 4 ||
+         countLine(tabella, i, j, 1, 0, pedina) >= 4 ||
+         countLine(tabella, i, j, 1, 1, pedina) >= 4 ||
+         countLine(tabella, i, j, 1, -1, pedina) >= 4;
 }
 ```
 
+Complessità
+-----------
+- `inserisciPedina`: O(righe)
+- `checkWin`: O(righe + colonne) in peggiore dei casi;
+- Spazio: O(righe*colonne)
 
-## Package e dichiarazione
-```java
-package com.retroroom;
-```
-**Cosa fa:**
-- Definisce il namespace del progetto.
+Casi limite e test consigliati
+-----------------------------
+Unit tests da aggiungere:
+1. `testInsertAndGetTable` — inserire in colonne diverse e verificare stato della matrice.
+2. `testInsertFullColumn` — riempire una colonna e verificare ritorno `false` per inserimenti ulteriori.
+3. `testHorizontalWin`, `testVerticalWin`, `testDiagonalWin1`, `testDiagonalWin2` — scenari di vittoria in tutti e quattro i tipi.
+4. `testBorderCases` — vittoria che coinvolge la prima/ultima riga/colonna.
+5. `testInvalidColumn` — check che un `colonna` out-of-range venga gestito (aggiungere throw esplicito o return false).
 
----
+Suggerimenti di refactor e miglioramenti
+---------------------------------------
+- Validazione dei parametri nel costruttore e nei metodi pubblici: lanciare `IllegalArgumentException` per dimensioni non valide o colonne fuori range.
+- Rimuovere mutabilità indesiderata esponendo copie difensive con `getTabella()` che ritorna deep copy invece di riferimento diretto.
+- Estrarre la logica di conteggio in metodi riutilizzabili in modo da evitare duplicazione e facilitare test.
+- Aggiungere annotazioni e JavaDoc per API pubbliche.
 
-## Attributo principale
-```java
-private int[][] tabella;
-```
-**Cosa fa:**
-- Matrice che rappresenta il campo di gioco di Forza 4.
+API pubblica (riassunto)
+------------------------
+- `Forza4(int righe, int colonne)`
+- `boolean inserisciPedina(int colonna, boolean giocatore)`
+- `int[][] getTabella()`
+- `boolean checkWin(int i, int j)`
 
----
+Conclusione
+----------
+Questa documentazione fornisce una panoramica approfondita e pratica su `Forza4.java`, individua bug critici (algoritmo di verifica vittoria) e suggerisce correzioni e test da introdurre. Posso applicare la correzione proposta direttamente nel codice sorgente e fornire test JUnit se desideri.
 
-## Costruttore
-```java
-public Forza4(int righe, int colonne) { ... }
-```
-**Cosa fa:**
-- Inizializza la matrice di gioco con il numero di righe e colonne specificato.
-
----
-
-## Inserimento pedina
-```java
-public boolean inserisciPedina(int colonna, boolean giocatore) { ... }
-```
-**Cosa fa:**
-- Inserisce una pedina nella colonna scelta dal giocatore (1 o 2).
-- Scorre la colonna dal basso verso l'alto e inserisce la pedina nella prima cella libera.
-- Restituisce true se l'inserimento ha successo, false se la colonna è piena.
-- Il parametro giocatore è booleano: true per il primo giocatore, false per il secondo.
-
----
-
-## Accesso alla tabella
-```java
-public int[][] getTabella() { ... }
-```
-**Cosa fa:**
-- Restituisce la matrice di gioco.
-
----
-
-## Controllo vittoria
-```java
-public boolean checkWin(int i, int j) { ... }
-```
-**Cosa fa:**
-- Controlla se la pedina appena inserita in (i, j) ha generato una vittoria (4 in fila) in una delle direzioni.
-- Chiama `checkDirection` per ogni direzione (orizzontale, verticale, diagonale).
-- La logica di checkDirection conta le pedine uguali in entrambe le direzioni.
-
----
-
-## Controllo direzione
-```java
-private boolean checkDirection(int i, int j, int x, int y, int pedina) { ... }
-```
-**Cosa fa:**
-- Conta le pedine uguali in una direzione e nella direzione opposta.
-- Restituisce true se ci sono 4 pedine consecutive (inclusa quella appena inserita).
-- La funzione restituisce true se trova 4 in fila, contando sia avanti che indietro dalla posizione inserita.
-
----
-
-## Conclusione
-Classe compatta che incapsula tutta la logica di Forza 4: inserimento pedine, controllo vittoria e accesso alla matrice di gioco.
+Fine del documento.

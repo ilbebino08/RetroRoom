@@ -1,162 +1,92 @@
-# Analisi tecnica dettagliata e approfondita: Scoreboard.java
+# Documentazione tecnica approfondita: Scoreboard.java
 
-## Descrizione generale
-Classe thread-safe per la gestione di una classifica di punteggi. Permette l’aggiunta, aggiornamento, rimozione e ordinamento di record, mantenendo solo il miglior punteggio per ogni giocatore.
+Percorso sorgente: `src/main/java/com/retroroom/Scoreboard.java`
 
-## Enum
-### `SortOrder`
-- `DESCENDING`: punteggi dal più alto al più basso (default)
-- `ASCENDING`: punteggi dal più basso al più alto
+Scopo del documento
+-------------------
+Fornire una documentazione completa della classe `Scoreboard` che gestisce la persistenza e l'ordinamento delle classifiche (leaderboard) usate dai giochi. Copre formato del file, API, comportamento in presenza di errori, sincronizzazione e test consigliati.
 
-## Attributi principali
-- `maxSize` (int): dimensione massima della classifica
-- `entries` (ArrayList<ScoreEntry>): lista dei record
-- `sortOrder` (SortOrder): ordinamento attuale
+Contesto e responsabilità
+-------------------------
+- `Scoreboard` è responsabile di mantenere una lista ordinata di oggetti `ScoreEntry` con operazioni di lettura da file (caricamento), inserimento/aggiornamento riga per nome, rimozione e scrittura su file.
+- `App` istanzia `Scoreboard` con un `File fileScores` e usa `getEntries()` per aggiornare la UI.
 
-## Costruttori
-- `Scoreboard(int maxSize)`: crea una classifica con ordinamento decrescente
-- `Scoreboard(int maxSize, SortOrder sortOrder)`: specifica ordinamento
+Formato del file
+----------------
+- Testuale CSV con separatore `;` e fine riga `\n`.
+- Righe valide: `Nome;Punteggio` (es. `Alice;12345`).
+- Caratteri speciali nei nomi: il codice attuale non fa escaping; se si vogliono supportare `;` nei nomi bisogna cambiare formato (ad es. CSV vero con quote) o usare JSON.
 
-## Metodi principali
-### `synchronized void addScore(String name, int score)`
-Aggiunge o aggiorna il punteggio di un giocatore. Se il nome esiste, aggiorna solo se il nuovo punteggio è migliore.
+Caricamento (loadScores)
+------------------------
+- Se `fileScores` è `null` ritorna immediatamente.
+- Se il file non esiste, crea la directory padre (se presente) e `fileScores.createNewFile()`.
+- Se il file esiste legge linea per linea con `Scanner`, ignora righe vuote e cerca di creare `ScoreEntry` da ogni riga.
+- Valori malformati vengono loggati su `System.err` e ignorati.
+- Dopo il caricamento viene chiamato `sortAndTrim()`.
 
-### `synchronized boolean addOrUpdateBest(String name, int score)`
-Come sopra, ma restituisce true se la classifica è cambiata.
-- Parametri: `name` (String), `score` (int)
-- Edge case: nomi null o vuoti ignorati.
+Scrittura (writeScores)
+-----------------------
+- La versione corrente scrive direttamente su `fileScores` aprendo un `FileOutputStream` in modalità sovrascrittura e scrivendo ciascuna `ScoreEntry.getBytes()`.
+- Vantaggi: semplicità. Svantaggi: non è atomico; errori di I/O mentre si scrive possono corrompere il file.
 
-### `synchronized boolean removeByName(String name)`
-Rimuove il record associato al nome (case-insensitive).
+Atomicità consigliata
+---------------------
+- Uso raccomandato: scrivere su un file temporaneo nella stessa directory (`fileScores.tmp`) usando `Files.write(tempPath, bytes, StandardOpenOption.CREATE, StandardOpenOption.WRITE, StandardOpenOption.TRUNCATE_EXISTING)`, quindi `Files.move(tempPath, targetPath, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE)` se la piattaforma lo supporta.
+- In alternativa, conservare una copia di backup prima di sovrascrivere.
 
-### `synchronized List<ScoreEntry> getEntries()`
-Restituisce una copia della lista dei record.
+Sincronizzazione e concorrenza
+------------------------------
+- `App` avvia un thread console che può chiamare `removeByName` mentre la UI chiama `addOrUpdateBest` — possono verificarsi race condition.
+- Raccomandazione: marcare i metodi che modificano `entries` e scrivono su disco come `synchronized` (es. `public synchronized boolean addOrUpdateBest(...)`) oppure usare `ReentrantReadWriteLock` per maggiore granularità.
 
-## Metodi privati
-- `isBetter(int newScore, int oldScore)`: verifica se il nuovo punteggio è migliore secondo l’ordinamento
-- `sortAndTrim()`: ordina e rimuove l’ultimo se la lista supera `maxSize`
+API dettagliata
+----------------
+- Costruttori:
+  - `Scoreboard(int maxSize, File fileScores)` — default descending order.
+  - `Scoreboard(int maxSize, SortOrder sortOrder, File fileScores)`.
+- `List<ScoreEntry> getEntries()` — ritorna copia difensiva delle entries.
+- `boolean addOrUpdateBest(String name, int score)` — aggiunge o aggiorna un record mantenendo la lista ordinata e tronca alla dimensione massima; ritorna true se la lista è cambiata.
+- `boolean removeByName(String name)` — rimuove entry case-insensitive.
 
-## Inner class
-### `ScoreEntry`
-- Attributi: `name` (String), `score` (int)
-- Metodi: costruttore, `getName()`, `getScore()`
+Classe interna `ScoreEntry`
+--------------------------
+- Campi: `String name; int score;`
+- Costruttore da riga: `ScoreEntry(String row)` splitta per `;` e parse int su index 1. Se parse fallisce può sollevare eccezione.
+- `toString()` e `getBytes()` restituiscono la rappresentazione `Nome;Punteggio\n`.
 
-## Thread safety
-Tutti i metodi pubblici che modificano la classifica sono `synchronized`.
+Edge cases e come gestirli
+-------------------------
+1. File inesistente -> creato automaticamente.
+2. File non scrivibile -> log e continuare (app non crasha). Meglio notificare l'utente.
+3. Nome vuoto -> `addOrUpdateBest` rifiuta e ritorna false.
+4. Valori non numerici -> riga ignorata, log su stderr.
+5. Concorrenza -> aggiungere sincronizzazione.
 
-## Esempio d’uso
+Test consigliati
+----------------
+- Test parsing: file con righe valide, righe vuote, righe malformate.
+- Test add/update: aggiungere nuovi nomi, aggiornare esistenti con punteggio migliore/peggiore.
+- Test di scrittura atomica: simulare errore di I/O (mock Files) e verificare che il file non venga corrotto.
+- Test concorrenti: spawnare più thread che fanno `addOrUpdateBest` e verificare consistenza finale.
+
+Migrazioni e miglioramenti futuri
+---------------------------------
+- Migrare a JSON per più robustezza e leggibilità (usare Jackson o Gson).
+- Usare DB SQLite per storicizzare le interazioni e fornire query avanzate (top N per gioco, filtri temporali).
+- Aggiungere API per esportare/importare classifiche.
+
+Snippet di scrittura atomica consigliata
+---------------------------------------
 ```java
-Scoreboard sb = new Scoreboard(10);
-sb.addScore("Mario", 100);
-sb.addScore("Luigi", 80);
-for (Scoreboard.ScoreEntry e : sb.getEntries()) {
-    System.out.println(e.getName() + ": " + e.getScore());
-}
+Path target = fileScores.toPath();
+Path tmp = target.resolveSibling(target.getFileName().toString() + ".tmp");
+Files.write(tmp, lines, StandardCharsets.UTF_8);
+Files.move(tmp, target, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
 ```
 
+Conclusione
+-----------
+`Scoreboard` è semplice e funzionale per il contesto scolastico; per produzione o per repository multiuser si consiglia di introdurre atomic write, locking e formato più robusto (JSON/DB). Posso applicare questi miglioramenti al codice e aggiungere test automatizzati.
 
-## Package e import
-```java
-package com.retroroom;
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.List;
-```
-**Cosa fa:**
-- Definisce il namespace e importa le classi per la gestione di liste e ordinamenti.
-
----
-
-## Enum SortOrder
-```java
-public enum SortOrder {
-    DESCENDING,
-    ASCENDING
-}
-```
-**Cosa fa:**
-- Definisce l'ordinamento della classifica: crescente o decrescente.
-
----
-
-## Attributi principali
-```java
-private int maxSize;
-private ArrayList<ScoreEntry> entries;
-private SortOrder sortOrder;
-```
-**Cosa fa:**
-- `maxSize`: dimensione massima della classifica.
-- `entries`: lista delle voci della classifica.
-- `sortOrder`: ordinamento attuale.
-- La lista è thread-safe grazie ai metodi synchronized.
-
----
-
-## Costruttori
-```java
-public Scoreboard(int maxSize) { ... }
-public Scoreboard(int maxSize, SortOrder sortOrder) { ... }
-```
-**Cosa fa:**
-- Inizializzano la classifica con dimensione massima e ordinamento.
-
----
-
-## Aggiunta e aggiornamento punteggi
-```java
-public synchronized void addScore(String name, int score) { ... }
-public synchronized boolean addOrUpdateBest(String name, int score) { ... }
-```
-**Cosa fa:**
-- Aggiungono o aggiornano il punteggio di un giocatore.
-- Solo il miglior punteggio viene mantenuto per ogni nome.
-- Sincronizzati per thread safety.
-
----
-
-## Rimozione punteggi
-```java
-public synchronized boolean removeByName(String name) { ... }
-```
-**Cosa fa:**
-- Rimuove un giocatore dalla classifica.
-
----
-
-## Ordinamento e trimming
-```java
-private boolean isBetter(int newScore, int oldScore) { ... }
-private void sortAndTrim() { ... }
-```
-**Cosa fa:**
-- Determinano se un nuovo punteggio è migliore e ordinano la classifica, rimuovendo l'ultimo se necessario.
-
----
-
-## Accesso ai punteggi
-```java
-public synchronized List<ScoreEntry> getEntries() { ... }
-```
-**Cosa fa:**
-- Restituisce una copia della lista dei punteggi.
-
----
-
-## Classe interna ScoreEntry
-```java
-public static class ScoreEntry {
-    private String name;
-    private int score;
-    public ScoreEntry(String name, int score) { ... }
-    public String getName() { ... }
-    public int getScore() { ... }
-}
-```
-**Cosa fa:**
-- Rappresenta una voce della classifica: nome e punteggio.
-
----
-
-## Conclusione
-Classe thread-safe che gestisce una classifica ordinata, mantenendo solo il miglior punteggio per ogni giocatore.
+Fine del documento.

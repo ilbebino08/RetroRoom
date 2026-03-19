@@ -19,6 +19,7 @@ import javafx.scene.shape.Circle;
 import javafx.stage.Stage;
 import javafx.util.Duration;
 
+import java.io.File;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -90,6 +91,11 @@ public class App extends Application {
     private static final long HOLD_REPEAT_INTERVAL_NS = 85_000_000L;
     private static final long UI_REFRESH_INTERVAL_NS = 100_000_000L;
 
+    private static final File pathScores = new File("scores");
+    private static final File dungeonScores = new File(pathScores, "dungeon.csv");
+    private static final File spaceScores = new File(pathScores, "space.csv");
+
+
     private AnimationTimer heldInputRepeater;
     private long nextUiRefreshNanos = 0L;
 
@@ -99,9 +105,9 @@ public class App extends Application {
     @Override
     public void start(Stage stage) {
         // Inizializza le classifiche
-        dungeonScoreboard = new Scoreboard(10, Scoreboard.SortOrder.ASCENDING);
+        dungeonScoreboard = new Scoreboard(10, Scoreboard.SortOrder.ASCENDING, dungeonScores);
 
-        spaceScoreboard = new Scoreboard(10, Scoreboard.SortOrder.ASCENDING);
+        spaceScoreboard = new Scoreboard(10, Scoreboard.SortOrder.ASCENDING, spaceScores);
 
         // Layout principale
         BorderPane root = new BorderPane();
