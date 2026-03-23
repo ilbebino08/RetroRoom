@@ -49,7 +49,8 @@ public class DungeonMaster {
     public static GameState newGame() {
         GameState state = new GameState();
         generaDungeon(state.dungeon, state.chiavePosizionata, state.mostriRimasti, state.uscitaPosizionata, state.vitaMostri);
-        state.startMillis = System.currentTimeMillis();
+        state.startMillis = 0L;
+        state.endMillis = 0L;
         return state;
     }
 
@@ -70,6 +71,9 @@ public class DungeonMaster {
     }
 
     public static long getElapsedMillis(GameState state) {
+        if (state.startMillis <= 0) {
+            return 0L;
+        }
         long end = state.endMillis > 0 ? state.endMillis : System.currentTimeMillis();
         return Math.max(0, end - state.startMillis);
     }
@@ -93,6 +97,11 @@ public class DungeonMaster {
             case 'a': nuovaY--; break;
             case 'd': nuovaY++; break;
             default: return "Comando non valido";
+        }
+
+        // Avvia il timer al primo comando di movimento del giocatore.
+        if (state.startMillis <= 0) {
+            state.startMillis = System.currentTimeMillis();
         }
 
         if (nuovaX < 0 || nuovaX >= DIMENSIONE || nuovaY < 0 || nuovaY >= DIMENSIONE) {
@@ -245,15 +254,27 @@ public class DungeonMaster {
 
         mostriRimasti[0] = NUMERO_MOSTRI;
 
-        for (int i = 0; i < NUMERO_MOSTRI; i++) {
+        // Piazza i mostri garantendo posizioni uniche e non sovrapposte
+        int placed = 0;
+        while (placed < NUMERO_MOSTRI) {
             int x = rand.nextInt(DIMENSIONE);
             int y = rand.nextInt(DIMENSIONE);
-            dungeon[x][y] = 'M';
-            vitaMostri[x][y] = VITA_MOSTRO;
+            // evita di sovrascrivere la posizione iniziale del giocatore (0,0)
+            if (x == 0 && y == 0) continue;
+            // piazza solo se la cella è vuota
+            if (dungeon[x][y] == '.') {
+                dungeon[x][y] = 'M';
+                vitaMostri[x][y] = VITA_MOSTRO;
+                placed++;
+            }
         }
 
-        int xSpada = rand.nextInt(DIMENSIONE);
-        int ySpada = rand.nextInt(DIMENSIONE);
+        // Piazza la spada su una cella vuota (non sovrascrive mostri o la posizione iniziale)
+        int xSpada, ySpada;
+        do {
+            xSpada = rand.nextInt(DIMENSIONE);
+            ySpada = rand.nextInt(DIMENSIONE);
+        } while ((xSpada == 0 && ySpada == 0) || dungeon[xSpada][ySpada] != '.');
         dungeon[xSpada][ySpada] = 'S';
 
         chiavePosizionata[0] = false;

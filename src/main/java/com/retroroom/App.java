@@ -87,9 +87,13 @@ public class App extends Application {
     private final List<KeyCode> heldInputOrder = new ArrayList<>();
     private final Map<KeyCode, Long> heldInputNextFireNanos = new HashMap<>();
 
-    private static final long HOLD_REPEAT_INITIAL_DELAY_NS = 220_000_000L;
-    private static final long HOLD_REPEAT_INTERVAL_NS = 85_000_000L;
-    private static final long UI_REFRESH_INTERVAL_NS = 100_000_000L;
+    private static final long HOLD_REPEAT_INITIAL_DELAY_NS = 130_000_000L;
+    private static final long HOLD_REPEAT_INTERVAL_NS = 33_000_000L;
+    private static final long UI_REFRESH_INTERVAL_NS = 16_500_000L;
+
+    // Cache logo per evitare caricamenti da risorsa ad ogni frame.
+    private final Map<String, Image> logoCache = new HashMap<>();
+    private String currentLogoKey = "";
 
     private static final File pathScores = new File("scores");
     private static final File dungeonScores = new File(pathScores, "dungeon.csv");
@@ -797,15 +801,33 @@ public class App extends Application {
     private String getArcadeCellStyle(String[][] grid, int row, int col) {
         int rows = grid.length;
         int cols = grid[0].length;
+        String symbol = grid[row][col];
 
         double top = row == 0 ? 2 : 0;
         double right = col == cols - 1 ? 2 : 0;
         double bottom = row == rows - 1 ? 2 : 0;
         double left = col == 0 ? 2 : 0;
 
+        String textColor = "#f7f7f7";
+        String backgroundColor = "transparent";
+
+        if ("😀".equals(symbol)) {
+            textColor = "#7cff66";
+            backgroundColor = "rgba(124, 255, 102, 0.12)";
+        } else if ("👹".equals(symbol)) {
+            textColor = "#ff6b6b";
+            backgroundColor = "rgba(255, 107, 107, 0.12)";
+        } else if ("🚀".equals(symbol)) {
+            textColor = "#66e3ff";
+            backgroundColor = "rgba(102, 227, 255, 0.12)";
+        } else if ("👾".equals(symbol)) {
+            textColor = "#ff8cff";
+            backgroundColor = "rgba(255, 140, 255, 0.12)";
+        }
+
         return "-fx-font-size: 18;"
-                + "-fx-text-fill: #f7f7f7;"
-                + "-fx-background-color: transparent;"
+                + "-fx-text-fill: " + textColor + ";"
+                + "-fx-background-color: " + backgroundColor + ";"
                 + "-fx-border-color: #53d6ff;"
                 + "-fx-border-width: " + top + " " + right + " " + bottom + " " + left + ";";
     }
@@ -1022,7 +1044,26 @@ public class App extends Application {
             return;
         }
 
-        gameLogoView.setImage(loadLogo(logoNameFor(activeGame)));
+        String logoKey = logoNameFor(activeGame);
+        if (logoKey.equals(currentLogoKey) && gameLogoView.getImage() != null) {
+            return;
+        }
+
+        gameLogoView.setImage(loadLogoCached(logoKey));
+        currentLogoKey = logoKey;
+    }
+
+    private Image loadLogoCached(String fileName) {
+        Image cached = logoCache.get(fileName);
+        if (cached != null) {
+            return cached;
+        }
+
+        Image image = loadLogo(fileName);
+        if (image != null) {
+            logoCache.put(fileName, image);
+        }
+        return image;
     }
 
     private String logoNameFor(CabinetGame game) {
@@ -1167,3 +1208,4 @@ public class App extends Application {
     }
 
 }
+

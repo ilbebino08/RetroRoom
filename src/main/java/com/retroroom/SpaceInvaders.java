@@ -32,8 +32,8 @@ public class SpaceInvaders {
             posizioneNemicoY[i] = rand.nextInt(altezza - 1);
         }
 
-        startMillis = System.currentTimeMillis();
-        endMillis = 0;
+        startMillis = 0L;
+        endMillis = 0L;
     }
 
     // Mostra il campo di gioco
@@ -74,6 +74,11 @@ public class SpaceInvaders {
 
     // Movimento del giocatore
     public void muovi(char input) {
+
+        if ((input == 'a' || input == 'd') && startMillis == 0L) {
+            // Il cronometro parte al primo comando di movimento laterale.
+            startMillis = System.currentTimeMillis();
+        }
 
         if (input == 'a' && posizioneGiocatoreX > 0) {
             posizioneGiocatoreX--;
@@ -140,6 +145,9 @@ public class SpaceInvaders {
     }
 
     public long getElapsedMillis() {
+        if (startMillis <= 0) {
+            return 0L;
+        }
         long end = endMillis > 0 ? endMillis : System.currentTimeMillis();
         return Math.max(0, end - startMillis);
     }
