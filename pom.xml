@@ -47,7 +47,7 @@
                 </configuration>
             </plugin>
 
-            <!-- Fat JAR -->
+            <!-- Maven Shade Plugin per creare fat JAR -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-shade-plugin</artifactId>
@@ -68,6 +68,20 @@
                         </configuration>
                     </execution>
                 </executions>
+            </plugin>
+
+            <!-- JAR Plugin per manifest -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-jar-plugin</artifactId>
+                <version>3.3.0</version>
+                <configuration>
+                    <archive>
+                        <manifest>
+                            <mainClass>com.retroroom.App</mainClass>
+                        </manifest>
+                    </archive>
+                </configuration>
             </plugin>
 
         </plugins>
