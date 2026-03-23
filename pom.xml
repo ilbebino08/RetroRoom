@@ -6,24 +6,36 @@
     <groupId>com.retroroom</groupId>
     <artifactId>retroroom</artifactId>
     <version>1.0</version>
+    <packaging>jar</packaging>
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 
-        <!-- Compila con JDK 19 -->
+        <!-- Compilazione con Java 19 -->
         <maven.compiler.release>19</maven.compiler.release>
 
-        <!-- JavaFX version -->
+        <!-- JavaFX -->
         <javafx.version>19</javafx.version>
 
         <!-- Main class -->
         <mainClass>com.retroroom.App</mainClass>
+
+        <!-- Dove creiamo la cartella "app" pronta da zippare -->
+        <dist.dir>${project.build.directory}/dist</dist.dir>
     </properties>
 
-    <!-- Di default NON mettiamo javafx-* qui, perché cambiano per OS (classifier).
-         Li aggiungiamo nei profili windows/linux/mac -->
+    <!-- Dipendenze "API" sempre presenti (necessarie per module-info.java) -->
     <dependencies>
-        <!-- altre tue dipendenze qui -->
+        <dependency>
+            <groupId>org.openjfx</groupId>
+            <artifactId>javafx-controls</artifactId>
+            <version>${javafx.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.openjfx</groupId>
+            <artifactId>javafx-fxml</artifactId>
+            <version>${javafx.version}</version>
+        </dependency>
     </dependencies>
 
     <build>
@@ -38,7 +50,7 @@
                 </configuration>
             </plugin>
 
-            <!-- (opzionale) per "mvn javafx:run" -->
+            <!-- (Opzionale) javafx:run -->
             <plugin>
                 <groupId>org.openjfx</groupId>
                 <artifactId>javafx-maven-plugin</artifactId>
@@ -48,13 +60,28 @@
                 </configuration>
             </plugin>
 
-            <!-- Fat jar -->
+            <!-- Crea un jar eseguibile con Main-Class nel manifest -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-jar-plugin</artifactId>
+                <version>3.4.1</version>
+                <configuration>
+                    <archive>
+                        <manifest>
+                            <mainClass>${mainClass}</mainClass>
+                        </manifest>
+                    </archive>
+                </configuration>
+            </plugin>
+
+            <!-- Fat jar (include dipendenze; utile ma NON basta da solo per JavaFX: useremo comunque libs/ + module-path) -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-shade-plugin</artifactId>
                 <version>3.5.3</version>
                 <executions>
                     <execution>
+                        <id>shade</id>
                         <phase>package</phase>
                         <goals>
                             <goal>shade</goal>
@@ -62,25 +89,121 @@
                         <configuration>
                             <createDependencyReducedPom>false</createDependencyReducedPom>
                             <transformers>
-                                <!-- mette Main-Class nel manifest del jar shaded -->
                                 <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
                                     <mainClass>${mainClass}</mainClass>
                                 </transformer>
                             </transformers>
-                            <!-- nome finale del jar -->
-                            <finalName>${project.artifactId}-${project.version}-${os.detected.classifier}</finalName>
+                            <!-- nome del jar "finale" (verrà impostato dai profili) -->
+                            <finalName>${project.artifactId}-${project.version}-${os.classifier}</finalName>
                         </configuration>
                     </execution>
                 </executions>
             </plugin>
+
+            <!-- Copia TUTTE le dipendenze runtime in dist/<os>/libs -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-dependency-plugin</artifactId>
+                <version>3.6.1</version>
+                <executions>
+                    <execution>
+                        <id>copy-runtime-deps</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>copy-dependencies</goal>
+                        </goals>
+                        <configuration>
+                            <includeScope>runtime</includeScope>
+                            <outputDirectory>${dist.dir}/${os.classifier}/libs</outputDirectory>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <!-- Copia il jar finale in dist/<os>/ -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-resources-plugin</artifactId>
+                <version>3.3.1</version>
+                <executions>
+                    <execution>
+                        <id>copy-jar-to-dist</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>copy-resources</goal>
+                        </goals>
+                        <configuration>
+                            <outputDirectory>${dist.dir}/${os.classifier}</outputDirectory>
+                            <resources>
+                                <resource>
+                                    <directory>${project.build.directory}</directory>
+                                    <includes>
+                                        <include>${project.artifactId}-${project.version}-${os.classifier}.jar</include>
+                                    </includes>
+                                </resource>
+                            </resources>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <!-- Copia gli script run.* in dist/<os>/ -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-resources-plugin</artifactId>
+                <version>3.3.1</version>
+                <executions>
+                    <execution>
+                        <id>copy-scripts-to-dist</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>copy-resources</goal>
+                        </goals>
+                        <configuration>
+                            <outputDirectory>${dist.dir}/${os.classifier}</outputDirectory>
+                            <resources>
+                                <resource>
+                                    <directory>${basedir}/dist-scripts/${os.classifier}</directory>
+                                    <filtering>false</filtering>
+                                </resource>
+                            </resources>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <!-- Crea lo ZIP dist/<os>.zip -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-assembly-plugin</artifactId>
+                <version>3.7.1</version>
+                <executions>
+                    <execution>
+                        <id>zip-dist</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>single</goal>
+                        </goals>
+                        <configuration>
+                            <appendAssemblyId>false</appendAssemblyId>
+                            <finalName>${project.artifactId}-${project.version}-${os.classifier}</finalName>
+                            <descriptors>
+                                <descriptor>${basedir}/assembly/${os.classifier}.xml</descriptor>
+                            </descriptors>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+
         </plugins>
     </build>
 
     <profiles>
+        <!-- WINDOWS -->
         <profile>
             <id>windows</id>
             <properties>
-                <os.detected.classifier>win</os.detected.classifier>
+                <os.classifier>win</os.classifier>
             </properties>
             <dependencies>
                 <dependency>
@@ -98,10 +221,11 @@
             </dependencies>
         </profile>
 
+        <!-- LINUX -->
         <profile>
             <id>linux</id>
             <properties>
-                <os.detected.classifier>linux</os.detected.classifier>
+                <os.classifier>linux</os.classifier>
             </properties>
             <dependencies>
                 <dependency>
@@ -119,10 +243,11 @@
             </dependencies>
         </profile>
 
+        <!-- macOS -->
         <profile>
             <id>mac</id>
             <properties>
-                <os.detected.classifier>mac</os.detected.classifier>
+                <os.classifier>mac</os.classifier>
             </properties>
             <dependencies>
                 <dependency>
@@ -140,4 +265,5 @@
             </dependencies>
         </profile>
     </profiles>
+
 </project>
